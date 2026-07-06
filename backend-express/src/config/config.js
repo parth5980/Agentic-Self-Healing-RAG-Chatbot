@@ -29,6 +29,10 @@ if (!process.env.GOOGLE_USER) {
   throw new Error("GOOGLE_USER is not defined in environment variables");
 }
 
+if (!process.env.AI_BACKEND_URL) {
+  throw new Error("AI_BACKEND_URL is not defined in environment variables");
+}
+
 const config = {
   MONGO_URI: process.env.MONGO_URI,
   JWT_SECRET: process.env.JWT_SECRET,
@@ -36,6 +40,7 @@ const config = {
   GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET,
   GOOGLE_REFRESH_TOKEN: process.env.GOOGLE_REFRESH_TOKEN,
   GOOGLE_USER: process.env.GOOGLE_USER,
+  AI_BACKEND_URL: process.env.AI_BACKEND_URL,
 };
 
 export default config;
