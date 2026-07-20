@@ -12,7 +12,7 @@ from app.graph import app as rag_app
 from app.ingest import ingest_document
 
 # FastAPI app
-app = FastAPI(title="DocuMind v2 API")
+app = FastAPI(title="PNX AI API")
 
 # CORS
 app.add_middleware(
@@ -36,10 +36,11 @@ class IngestRequest(BaseModel):
 
 
 # Initial state template
-def get_initial_state(question: str, chat_history: list) -> dict:
+def get_initial_state(question: str, chat_history: list, thread_id: str) -> dict:
     return {
         "question": question,
         "chat_history": chat_history,
+        "thread_id": thread_id,
         "query_type": "rag",
         "rewritten_query": "",
         "all_queries": [],
@@ -52,10 +53,10 @@ def get_initial_state(question: str, chat_history: list) -> dict:
         "hallucination_retry_count": 0,
         "hallucination_pass": False,
         "answer_score": 0.0,
+        "answer_retry_count": 0,
         "sources": [],
         "final_answer": ""
     }
-
 
 # Node status messages
 NODE_MESSAGES = {
@@ -80,10 +81,10 @@ NODE_MESSAGES = {
 
 
 # SSE generator
-def stream_pipeline(question: str, chat_history: list):
+def stream_pipeline(question: str, chat_history: list, thread_id: str):
     """Stream pipeline node updates and final answer"""
 
-    state = get_initial_state(question, chat_history)
+    state = get_initial_state(question, chat_history, thread_id)
 
     try:
         for chunk in rag_app.stream(state):
@@ -117,7 +118,7 @@ def new_chat():
 def chat(request: ChatRequest):
     """Stream the RAG pipeline response"""
     return StreamingResponse(
-        stream_pipeline(request.message, request.chat_history),
+        stream_pipeline(request.message, request.chat_history,request.thread_id),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
@@ -131,7 +132,8 @@ def chat(request: ChatRequest):
 async def ingest(
     source_type: str = Form(...),
     source: Optional[str] = Form(None),
-    file: Optional[UploadFile] = File(None)
+    file: Optional[UploadFile] = File(None),
+    thread_id: str = Form(...)
 ):
     """Ingest a document into Pinecone"""
 
@@ -139,16 +141,15 @@ async def ingest(
         temp_path = f"temp_{file.filename}"
         with open(temp_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
-        result = ingest_document("pdf", temp_path)
+        result = ingest_document("pdf", temp_path, thread_id)
         os.remove(temp_path)
         return result
 
     if source:
-        result = ingest_document(source_type, source)
+        result = ingest_document(source_type, source, thread_id)
         return result
 
     return {"success": False, "message": "No source provided"}
-
 
 @app.get("/health")
 def health():

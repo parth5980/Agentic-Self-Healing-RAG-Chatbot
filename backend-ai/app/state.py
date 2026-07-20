@@ -9,6 +9,7 @@ class AgentState(TypedDict):
     query_type: Literal["rag", "chat", "web"]
     question: str
     chat_history: List[dict]
+    thread_id: str
 
     # Query processing
     rewritten_query: str
@@ -28,6 +29,7 @@ class AgentState(TypedDict):
 
     # Grading
     answer_score: float
+    answer_retry_count: int
 
     # Final
     sources: List[str]

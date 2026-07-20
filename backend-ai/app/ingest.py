@@ -8,7 +8,7 @@ from langchain_community.document_loaders import (
 from app.config import vectorstore
 
 
-def load_and_split(source_type: str, source: str) -> list:
+def load_and_split(source_type: str, source: str, thread_id: str) -> list:
     """Load documents from any source and split into chunks."""
 
     text_splitter = RecursiveCharacterTextSplitter(
@@ -25,7 +25,7 @@ def load_and_split(source_type: str, source: str) -> list:
         documents = loader.load()
 
     elif source_type == "youtube":
-        loader = YoutubeLoader.from_youtube_url(source)
+        loader = YoutubeLoader.from_youtube_url(source, language=["en", "hi"])
         documents = loader.load()
 
     elif source_type == "text":
@@ -35,13 +35,18 @@ def load_and_split(source_type: str, source: str) -> list:
         raise ValueError(f"Invalid source_type: {source_type}")
 
     chunks = text_splitter.split_documents(documents)
+
+    for chunk in chunks:
+        chunk.metadata["thread_id"] = thread_id
+        chunk.metadata["source_type"] = source_type
+
     return chunks
 
 
-def ingest_document(source_type: str, source: str) -> dict:
+def ingest_document(source_type: str, source: str, thread_id: str) -> dict:
     """Main ingestion function called by FastAPI."""
     try:
-        chunks = load_and_split(source_type, source)
+        chunks = load_and_split(source_type, source, thread_id)
         vectorstore.add_documents(chunks)
         return {
             "success": True,

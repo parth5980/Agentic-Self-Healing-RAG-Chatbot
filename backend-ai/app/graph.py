@@ -41,6 +41,8 @@ def route_hallucination(state: AgentState) -> str:
 def route_answer(state: AgentState) -> str:
     if state["answer_score"] >= 4:
         return "source_citation"
+    elif state["answer_retry_count"] >= 2:
+        return "source_citation"
     else:
         return "query_rewriter"
 
@@ -81,7 +83,7 @@ def build_graph():
     workflow.add_edge("reranker", "context_builder")
     workflow.add_edge("context_builder", "answer_generator")
     workflow.add_edge("answer_generator", "hallucination_check")
-    workflow.add_edge("regenerate", "answer_generator")
+    workflow.add_edge("regenerate", "hallucination_check")
     workflow.add_edge("source_citation", "final_response")
     workflow.add_edge("final_response", END)
     workflow.add_edge("chat_node", "final_response")

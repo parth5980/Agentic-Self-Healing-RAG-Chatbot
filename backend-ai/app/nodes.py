@@ -26,26 +26,47 @@ def format_chat_history(chat_history: List[dict]) -> str:
 def query_analyzer(state: AgentState) -> AgentState:
     """Classify query as rag, chat or web"""
 
+    history = format_chat_history(state["chat_history"])
+
     prompt = ChatPromptTemplate.from_messages([
-        ("system", """You are a query classifier. Classify the user query into one of three categories:
-- 'rag': if the query requires searching uploaded documents or PDFs
-- 'chat': if the query is general knowledge, concepts, definitions or simple questions
-- 'web': if the query requires current information, latest news, recent events, or real-time data
+        ("system", """You are a query router for a RAG chatbot that has access to content the user has ingested — uploaded PDFs, ingested web pages, and ingested YouTube video transcripts.
+
+Classify the user's query into exactly one category:
+
+- 'rag': the query asks about specific content, facts, sections, or details that would come from content the user has ingested (PDF, web page, or YouTube transcript). This includes follow-up questions continuing a document-based conversation, and requests like "summarize that youtube video" or "summarize the link I shared" that refer to already-ingested content.
+- 'chat': the query is general knowledge, a definition, small talk, or a question about the assistant itself (who are you, what can you do).
+- 'web': the query explicitly needs current, real-time, or recent information (today's news, current prices, latest events) that a static document or general knowledge cannot answer.
+
+Examples:
+"give me summary of i uploaded url or youtube link or give me details about recent uploaded pdf,url,you tube video,link" -> rag
+"Summarize the introduction section" -> rag
+"What does the contract say about termination?" -> rag
+"What about the next part?" (after a document question) -> rag
+"Give summary of the youtube video I shared" -> rag
+"What is photosynthesis?" -> chat
+"Who are you?" -> chat
+"What's today's weather in Delhi?" -> web
+"What's the latest news on the elections?" -> web
+
+Rule: if the query could reasonably be about content the user has already ingested and there is any ambiguity, choose 'rag' over 'chat' or 'web'.
 
 Respond with ONLY one word: 'rag', 'chat' or 'web'. Nothing else."""),
-        ("human", "{question}")
+        ("human", """{history}Current question: {question}""")
     ])
 
     chain = prompt | llm_small
-    result = chain.invoke({"question": state["question"]})
+    result = chain.invoke({
+        "history": history,
+        "question": state["question"]
+    })
     query_type = result.content.strip().lower()
 
     if query_type not in ["rag", "chat", "web"]:
         query_type = "rag"
 
     return {"query_type": query_type}
-
-
+    
+    
 def query_rewriter(state: AgentState) -> AgentState:
     """Rewrite the user query for better retrieval"""
 
@@ -91,7 +112,11 @@ def retrieve_documents(state: AgentState) -> AgentState:
 
     all_docs = []
     for query in state["all_queries"]:
-        docs = vectorstore.similarity_search(query, k=5)
+        docs = vectorstore.similarity_search(
+            query,
+            k=5,
+            filter={"thread_id": state["thread_id"]}
+        )
         all_docs.extend(docs)
 
     return {"documents": all_docs}
@@ -104,11 +129,23 @@ def grade_retrieval(state: AgentState) -> AgentState:
     docs_content = "\n\n".join([doc.page_content[:500] for doc in docs_sample])
 
     prompt = ChatPromptTemplate.from_messages([
-        ("system", """You are a retrieval grader.
-Judge whether the retrieved documents are relevant to answer the user's question.
-Give a score from 0 to 5:
-- 0-2: Documents are not relevant at all
-- 3-5: Documents are relevant and useful
+        ("system", """You are a strict retrieval grader for a RAG system.
+
+Your job is NOT to judge general topical similarity. Your job is to judge
+whether the retrieved documents contain enough SPECIFIC information to
+actually answer the user's question.
+
+Score from 0 to 5:
+- 0-2: The documents do not contain the specific facts, entities, or
+  sections needed to answer the question — even if they share keywords
+  or a general topic with it.
+- 3-5: The documents contain the specific information needed to answer
+  the question directly.
+
+If the question asks about a specific named entity, section, or topic
+(e.g. "the DianSource section") and that name/entity does not appear
+anywhere in the documents, score 0-2 regardless of general subject
+overlap.
 
 Return ONLY a single number between 0 and 5. Nothing else."""),
         ("human", """Question: {question}
@@ -201,6 +238,7 @@ def reranker(state: AgentState) -> AgentState:
         top_docs.append({
             "content": doc.page_content,
             "source": doc.metadata.get("source", ""),
+            "source_type": doc.metadata.get("source_type", "document"),
             "score": item["relevance_score"]
         })
 
@@ -219,11 +257,13 @@ def context_builder(state: AgentState) -> AgentState:
         if doc["content"] in seen:
             continue
         seen.add(doc["content"])
-        context += f"[Chunk {i+1}]\n{doc['content']}\n\n"
+        source_type = doc.get("source_type", "document")
+        context += f"[Chunk {i+1} - from {source_type}]\n{doc['content']}\n\n"
         if doc["source"]:
             sources.append(doc["source"])
 
     return {"context": context, "sources": sources}
+    
 
 
 def answer_generator(state: AgentState) -> AgentState:
@@ -234,7 +274,9 @@ def answer_generator(state: AgentState) -> AgentState:
     prompt = ChatPromptTemplate.from_messages([
         ("system", """You are a helpful assistant. Answer the user's question based ONLY on the provided context.
 If the context doesn't contain enough information, say "I don't have enough information to answer this."
-Be clear, concise and accurate."""),
+Be clear, concise and accurate.
+Each chunk in the context is labeled with its source type (e.g. "from pdf", "from youtube", "from url"). When relevant, mention which source your answer is based on, e.g. "According to your PDF..." or "According to the video...". If the context mixes multiple source types, make clear which parts come from which.
+Always respond in the same language the user asked the question in, even if the provided context is in a different language. Translate the relevant information into the question's language."""),
         ("human", """{history}Context:
 {context}
 
@@ -289,7 +331,9 @@ def regenerate(state: AgentState) -> AgentState:
         ("system", """You are a strict assistant. Answer ONLY using the provided context.
 Do NOT add any information that is not explicitly present in the context.
 Do NOT make assumptions or inferences beyond what is written.
-If the context doesn't contain the answer, say "I don't have enough information." """),
+If the context doesn't contain the answer, say "I don't have enough information."
+Each chunk in the context is labeled with its source type (e.g. "from pdf", "from youtube", "from url"). When relevant, mention which source your answer is based on, e.g. "According to your PDF..." or "According to the video...". If the context mixes multiple source types, make clear which parts come from which.
+Always respond in the same language the user asked the question in, even if the provided context is in a different language. Translate the relevant information into the question's language."""),
         ("human", """{history}Context:
 {context}
 
@@ -337,6 +381,9 @@ Answer: {answer}""")
         score = float(result.content.strip())
     except:
         score = 4.0
+        
+    if not state.get("hallucination_pass", True):
+        score = min(score, 3.0)
 
     if score < 4:
         return {
@@ -344,13 +391,12 @@ Answer: {answer}""")
             "documents": [],
             "top_docs": [],
             "context": "",
-            "answer": "",
             "retrieval_retry_count": 0,
             "hallucination_retry_count": 0,
+            "answer_retry_count": state.get("answer_retry_count", 0) + 1,
             "all_queries": [],
             "sources": []
         }
-
     return {"answer_score": score}
 
 
@@ -382,9 +428,9 @@ def chat_node(state: AgentState) -> AgentState:
     history = format_chat_history(state["chat_history"])
 
     prompt = ChatPromptTemplate.from_messages([
-    (
-        "system",
-        """
+        (
+            "system",
+            """
     You are intelligent Agentic RAG chatbot designed to provide accurate, helpful, and conversational responses.
     
     Your responsibilities:
@@ -393,10 +439,12 @@ def chat_node(state: AgentState) -> AgentState:
     3. If the user asks about previous messages, use the chat history when relevant.
     4. Be friendly, professional, and concise.
     5. If you do not know an answer, honestly say you don't know instead of making up information.
+    6. Always respond in the same language the user's question is asked in.
+    7. If the user asks something that requires specific facts from an uploaded document (not general knowledge), say you don't have access to that document in this mode, rather than guessing.
     
     Identity:
-    - Your name is intelligent Agentic RAG chatbot.
-    - You are an Agentic Retrieval-Augmented Generation (RAG) chatbot.
+    - Your name is PNX AI.
+    - You are a Self-Healing RAG (Retrieval-Augmented Generation) chatbot.
     - You can answer questions from uploaded documents, general knowledge, and web search.
     - You maintain conversation context using the provided chat history.
     
@@ -410,16 +458,16 @@ def chat_node(state: AgentState) -> AgentState:
     
     Reply enthusiastically:
     
-    "👋 Hello! I am self healing Agentic RAG Chatbot.
-    
-    I was developed as a college AI project by two Computer Engineering students from LDRP Institute of Technology.
-    
+    "👋 Hello! I am PNX AI, a Agentic Self-Healing RAG ChatBot designed to assist with information retrieval and answer your questions accurately. As an AI, I am built to continuously adapt and improve my responses to help you better.
+
+    I was developed by a two-person engineering team.
+
+    🎨 Frontend & Architecture:
+    Ashish — built the MERN-stack architecture, handling the React and TailwindCSS frontend alongside the Express backend.
+
     🚀 Backend & AI Development:
-    Parth 
-    
-    🎨 Frontend Development:
-    Ashish
-    
+    Parth — AI/ML engineer, developed the backend artificial intelligence and self-healing retrieval architecture.
+
     I can answer questions from uploaded documents, general knowledge, and current web information while maintaining conversation context."
     
     For all other questions, answer naturally using the provided conversation history when appropriate.
@@ -461,8 +509,16 @@ def web_search_node(state: AgentState) -> AgentState:
     history = format_chat_history(state["chat_history"])
 
     prompt = ChatPromptTemplate.from_messages([
-        ("system", """You are a helpful assistant. Answer the user's question based on the provided web search results.
-Be accurate and cite which result supports your answer."""),
+        ("system", """You are a helpful assistant that answers questions using real-time web search results.
+
+Guidelines:
+- Base your answer only on the provided web search results, not prior knowledge, since the user is asking for current/up-to-date information.
+- Synthesize information across multiple results rather than relying on just one, when they cover the same point.
+- If results disagree or give conflicting information, mention the disagreement rather than silently picking one.
+- Prefer more recent information when results conflict and publication dates or recency are indicated.
+- Reference which result supports each claim using its number, like [1] or [2], matching the result order given.
+- If the web search results don't actually contain relevant information to answer the question, say so honestly instead of guessing.
+- Always respond in the same language the user's question is asked in, even if the web search results are in a different language."""),
         ("human", """{history}Web Search Results:
 {context}
 
