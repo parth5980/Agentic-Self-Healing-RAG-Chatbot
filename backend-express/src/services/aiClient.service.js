@@ -91,3 +91,50 @@ export async function getAIResponse({
 
   return finalAnswer;
 }
+
+/**
+ * Forwards a source to backend-ai's POST /ingest so it gets chunked,
+ * embedded, and upserted into Pinecone. backend-ai expects
+ * multipart/form-data (FastAPI Form/File), never JSON, so this always
+ * builds a FormData body — even for a plain URL or text string.
+ *
+ * @param {Object} params
+ * @param {"pdf"|"url"|"youtube"|"text"} params.sourceType
+ * @param {string} [params.source] Required for url/youtube/text — the URL or raw text
+ * @param {{buffer: Buffer, originalname: string, mimetype: string}} [params.file] Required for pdf — this is req.file from multer's memoryStorage
+ */
+export async function ingestSource({ sourceType, source, file, threadId }) {
+  const form = new FormData();
+  form.append("source_type", sourceType);
+  form.append("thread_id", threadId);
+
+  if (sourceType === "pdf" && file) {
+    form.append(
+      "file",
+      new Blob([file.buffer], { type: file.mimetype }),
+      file.originalname,
+    );
+  } else if (source) {
+    form.append("source", source);
+  } else {
+    throw new Error(
+      "Provide either a file (pdf) or a source (url/youtube/text)",
+    );
+  }
+
+  let response;
+  try {
+    response = await fetch(`${config.AI_BACKEND_URL}/ingest`, {
+      method: "POST",
+      body: form, // fetch sets the multipart boundary automatically for FormData
+    });
+  } catch (err) {
+    throw new Error(`Could not reach AI backend: ${err.message}`);
+  }
+
+  if (!response.ok) {
+    throw new Error(`AI backend responded with status ${response.status}`);
+  }
+
+  return response.json(); // {success, message}
+}

@@ -2,6 +2,7 @@ import { Router } from "express";
 import * as chatController from "../controllers/chat.controller.js";
 import { requireAuth } from "../middlewares/auth.middleware.js";
 import Thread from "../models/thread.model.js";
+import upload from "../middlewares/upload.middleware.js";
 
 const chatRouter = Router();
 
@@ -27,6 +28,13 @@ chatRouter.delete("/thread/:threadId", chatController.deleteThread);
  * POST /api/chat/chat
  */
 chatRouter.post("/chat", chatController.sendMessage);
+
+/**
+ * POST /api/chat/ingest
+ * multipart/form-data with a "file" field when sourceType is "pdf",
+ * otherwise plain JSON with { sourceType, source }.
+ */
+chatRouter.post("/ingest", upload.single("file"), chatController.ingest);
 
 export default chatRouter;
 
