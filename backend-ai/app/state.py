@@ -6,7 +6,7 @@ from langchain_core.documents import Document
 class AgentState(TypedDict):
 
     # Input
-    query_type: Literal["rag", "chat", "web"]
+    query_type: Literal["rag", "chat", "web", "summary"]
     question: str
     chat_history: List[dict]
     thread_id: str

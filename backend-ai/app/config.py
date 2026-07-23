@@ -3,9 +3,12 @@ from dotenv import load_dotenv
 from langchain_mistralai import ChatMistralAI, MistralAIEmbeddings
 from langchain_pinecone import PineconeVectorStore
 from pinecone import Pinecone
+from pathlib import Path
+from supabase import create_client
 
 # Load environment variables
-load_dotenv()
+env_path = Path(__file__).resolve().parent.parent / ".env"
+load_dotenv(dotenv_path=env_path)
 
 # API Keys
 MISTRAL_API_KEY = os.getenv("MISTRAL_API_KEY")
@@ -48,3 +51,9 @@ vectorstore = PineconeVectorStore(
     embedding=embeddings,
     text_key="text"
 )
+# Supabase (for storing original PDFs, used by the summary feature)
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+SUPABASE_BUCKET = os.getenv("SUPABASE_BUCKET")
+
+supabase = create_client(SUPABASE_URL, SUPABASE_KEY)

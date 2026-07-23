@@ -9,6 +9,11 @@ from app.config import (
     JINA_API_KEY, TAVILY_API_KEY
 )
 from app.state import AgentState
+import os
+from app.config import supabase, SUPABASE_BUCKET
+import tempfile
+from langchain_community.document_loaders import PyPDFLoader
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 
 def format_chat_history(chat_history: List[dict]) -> str:
@@ -33,24 +38,48 @@ def query_analyzer(state: AgentState) -> AgentState:
 
 Classify the user's query into exactly one category:
 
-- 'rag': the query asks about specific content, facts, sections, or details that would come from content the user has ingested (PDF, web page, or YouTube transcript). This includes follow-up questions continuing a document-based conversation, and requests like "summarize that youtube video" or "summarize the link I shared" that refer to already-ingested content.
+- 'summary': the query asks for a broad, whole-document summary or overview of an uploaded PDF specifically. This is ONLY for PDF-wide summaries, not specific facts or sections, and NOT for YouTube videos or URLs.
+- 'rag': the query asks about specific content, facts, sections, or details that would come from content the user has ingested (PDF, web page, or YouTube transcript) — including summaries of a YouTube video or URL (not PDF), and follow-up questions continuing a document-based conversation.
 - 'chat': the query is general knowledge, a definition, small talk, or a question about the assistant itself (who are you, what can you do).
 - 'web': the query explicitly needs current, real-time, or recent information (today's news, current prices, latest events) that a static document or general knowledge cannot answer.
 
-Examples:
-"give me summary of i uploaded url or youtube link or give me details about recent uploaded pdf,url,you tube video,link" -> rag
+Examples for 'summary' (PDF-wide only):
+"summarize my pdf" -> summary
+"what does the pdf I uploaded contain" -> summary
+"give me an overview of the document" -> summary
+"can you summarize the file I sent" -> summary
+"what is this pdf about" -> summary
+"tell me everything in the pdf" -> summary
+"give me a full summary of my document" -> summary
+
+Examples for 'rag' (specific facts, or non-PDF summaries):
+"Give summary of the youtube video I shared" -> rag
+"summarize the article from the link" -> rag
+"summarize the url I sent" -> rag
 "Summarize the introduction section" -> rag
 "What does the contract say about termination?" -> rag
+"What does chapter 3 talk about?" -> rag
 "What about the next part?" (after a document question) -> rag
-"Give summary of the youtube video I shared" -> rag
+"tell me more about that" (following a document-based answer) -> rag
+"what does the video say about X" -> rag
+
+Examples for 'chat':
 "What is photosynthesis?" -> chat
 "Who are you?" -> chat
+"what can you do" -> chat
+"hi, how are you" -> chat
+"explain what a neural network is" (no document reference) -> chat
+
+Examples for 'web':
+"tell me about us and iran war " -> web
 "What's today's weather in Delhi?" -> web
 "What's the latest news on the elections?" -> web
+"who is the current prime minister of India" -> web
+"what's the stock price of X today" -> web
 
-Rule: if the query could reasonably be about content the user has already ingested and there is any ambiguity, choose 'rag' over 'chat' or 'web'.
+Rule: if the query could reasonably be about content the user has already ingested and there is any ambiguity, choose 'rag' over 'chat' or 'web'. Only choose 'summary' when it is unmistakably a request for a whole-PDF summary — if in doubt between 'summary' and 'rag', choose 'rag'.
 
-Respond with ONLY one word: 'rag', 'chat' or 'web'. Nothing else."""),
+Respond with ONLY one word: 'summary', 'rag', 'chat' or 'web'. Nothing else."""),
         ("human", """{history}Current question: {question}""")
     ])
 
@@ -61,7 +90,7 @@ Respond with ONLY one word: 'rag', 'chat' or 'web'. Nothing else."""),
     })
     query_type = result.content.strip().lower()
 
-    if query_type not in ["rag", "chat", "web"]:
+    if query_type not in ["summary","rag", "chat", "web"]:
         query_type = "rag"
 
     return {"query_type": query_type}
@@ -538,3 +567,82 @@ Question: {question}""")
         citation_text += f"\n[{i+1}] {source}"
 
     return {"final_answer": answer + citation_text}
+
+def get_pdf_path_for_thread(thread_id: str) -> str:
+    """Find the original PDF's Supabase path for a given thread_id"""
+    results = vectorstore.similarity_search(
+        "summary",
+        k=1,
+        filter={"thread_id": thread_id}
+    )
+    if not results:
+        return None
+    return results[0].metadata.get("pdf_path")
+
+
+def download_pdf_from_supabase(storage_path: str) -> str:
+    """Download a PDF from Supabase Storage to a unique local temp file"""
+    response = supabase.storage.from_(SUPABASE_BUCKET).download(storage_path)
+
+    temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
+    temp_file.write(response)
+    temp_file.close()
+
+    return temp_file.name
+    
+def map_reduce_summarize(full_text: str) -> str:
+    """Summarize a long document by splitting into sections, summarizing each, then combining"""
+    section_splitter = RecursiveCharacterTextSplitter(chunk_size=8000, chunk_overlap=200)
+    sections = section_splitter.split_text(full_text)
+
+    map_prompt = ChatPromptTemplate.from_messages([
+        ("system", "Summarize the following section of a document. Be concise but capture all key points, names, and facts mentioned."),
+        ("human", "{section}")
+    ])
+    map_chain = map_prompt | llm_large
+
+    section_summaries = []
+    for section in sections:
+        try:
+            result = map_chain.invoke({"section": section})
+            section_summaries.append(result.content)
+        except Exception:
+            continue
+
+    if not section_summaries:
+        return "Sorry, I couldn't generate a summary due to repeated errors. Please try again shortly."
+
+    if len(section_summaries) == 1:
+        return section_summaries[0]
+
+    combined = "\n\n".join(section_summaries)
+    reduce_prompt = ChatPromptTemplate.from_messages([
+        ("system", "The following are summaries of different sections of the same document. Combine them into one single, coherent, well-organized summary of the entire document."),
+        ("human", "{combined_summaries}")
+    ])
+    reduce_chain = reduce_prompt | llm_large
+
+    try:
+        final_result = reduce_chain.invoke({"combined_summaries": combined})
+        return final_result.content
+    except Exception:
+        return "\n\n---\n\n".join(section_summaries)
+
+def summary_node(state: AgentState) -> AgentState:
+    """Generate a full-document summary for the PDF uploaded in this conversation"""
+
+    pdf_path = get_pdf_path_for_thread(state["thread_id"])
+    if not pdf_path:
+        return {"final_answer": "I couldn't find a PDF uploaded in this conversation to summarize."}
+
+    local_file = download_pdf_from_supabase(pdf_path)
+
+    try:
+        loader = PyPDFLoader(local_file)
+        docs = loader.load()
+        full_text = "\n\n".join([d.page_content for d in docs])
+        summary = map_reduce_summarize(full_text)
+    finally:
+        os.remove(local_file)
+
+    return {"final_answer": summary}

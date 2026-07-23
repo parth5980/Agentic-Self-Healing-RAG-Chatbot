@@ -6,9 +6,9 @@ from app.nodes import (
     retrieve_documents, grade_retrieval, refine_query,
     tavily_search, reranker, context_builder, answer_generator,
     hallucination_check, regenerate, answer_grader,
-    source_citation, final_response, chat_node, web_search_node
+    source_citation, final_response, chat_node,
+    web_search_node, summary_node
 )
-
 
 # Conditional edge functions
 def route_query(state: AgentState) -> str:
@@ -16,6 +16,8 @@ def route_query(state: AgentState) -> str:
         return "chat_node"
     elif state["query_type"] == "web":
         return "web_search_node"
+    elif state["query_type"] == "summary":
+        return "summary_node"
     else:
         return "query_rewriter"
 
@@ -70,6 +72,7 @@ def build_graph():
     workflow.add_node("final_response", final_response)
     workflow.add_node("chat_node", chat_node)
     workflow.add_node("web_search_node", web_search_node)
+    workflow.add_node("summary_node", summary_node)
 
     # Entry point
     workflow.set_entry_point("query_analyzer")
@@ -86,6 +89,7 @@ def build_graph():
     workflow.add_edge("regenerate", "hallucination_check")
     workflow.add_edge("source_citation", "final_response")
     workflow.add_edge("final_response", END)
+    workflow.add_edge("summary_node", "final_response")
     workflow.add_edge("chat_node", "final_response")
     workflow.add_edge("web_search_node", "final_response")
 
@@ -93,6 +97,7 @@ def build_graph():
     workflow.add_conditional_edges("query_analyzer", route_query, {
         "chat_node": "chat_node",
         "web_search_node": "web_search_node",
+        "summary_node": "summary_node",
         "query_rewriter": "query_rewriter"
     })
 

@@ -76,7 +76,8 @@ NODE_MESSAGES = {
     "source_citation": "📎 Adding citations...",
     "final_response": "✅ Done!",
     "chat_node": "💬 Generating response...",
-    "web_search_node": "🌐 Searching web for latest info..."
+    "web_search_node": "🌐 Searching web for latest info...",
+    "summary_node": "📄 Summarizing your document..."
 }
 
 
@@ -103,7 +104,12 @@ def stream_pipeline(question: str, chat_history: list, thread_id: str):
         yield f"data: {json.dumps({'type': 'done'})}\n\n"
 
     except Exception as e:
-        yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
+        error_str = str(e)
+        if "429" in error_str or "rate_limit" in error_str.lower() or "Rate limit" in error_str:
+            friendly_message = "Too many requests right now. Please wait a moment and try again."
+        else:
+            friendly_message = "Something went wrong while processing your request. Please try again."
+        yield f"data: {json.dumps({'type': 'error', 'message': friendly_message})}\n\n"
 
 
 # Endpoints
