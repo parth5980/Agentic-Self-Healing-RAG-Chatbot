@@ -38,4 +38,9 @@ authRouter.get("/logout-all", authController.logoutAll);
  */
 authRouter.post("/verify-email", authController.verifyEmail);
 
+/**
+ * POST /api/auth/resend-otp
+ */
+authRouter.post("/resend-otp", authController.resendOtp);
+
 export default authRouter;
