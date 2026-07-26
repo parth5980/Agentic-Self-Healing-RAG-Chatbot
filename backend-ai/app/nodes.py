@@ -51,6 +51,10 @@ Examples for 'summary' (PDF-wide only):
 "what is this pdf about" -> summary
 "tell me everything in the pdf" -> summary
 "give me a full summary of my document" -> summary
+"summarize the langchain one pdf" -> summary
+"summarize report1.pdf" -> summary
+"give me a summary of the CNN architectures pdf" -> summary
+"summarize the langchain guide" -> summary
 
 Examples for 'rag' (specific facts, or non-PDF summaries):
 "Give summary of the youtube video I shared" -> rag
@@ -590,7 +594,7 @@ def download_pdf_from_supabase(storage_path: str) -> str:
 
     return temp_file.name
     
-def map_reduce_summarize(full_text: str) -> str:
+def map_reduce_summarize(full_text: str, short: bool = False) -> str:
     """Summarize a long document by splitting into sections, summarizing each, then combining"""
     section_splitter = RecursiveCharacterTextSplitter(chunk_size=8000, chunk_overlap=200)
     sections = section_splitter.split_text(full_text)
@@ -612,12 +616,18 @@ def map_reduce_summarize(full_text: str) -> str:
     if not section_summaries:
         return "Sorry, I couldn't generate a summary due to repeated errors. Please try again shortly."
 
-    if len(section_summaries) == 1:
+    if len(section_summaries) == 1 and not short:
         return section_summaries[0]
 
     combined = "\n\n".join(section_summaries)
+
+    if short:
+        reduce_instruction = "The following are summaries of different sections of the same document. Combine them into ONE SHORT summary — no more than 5-6 sentences or bullet points total, covering only the most essential points."
+    else:
+        reduce_instruction = "The following are summaries of different sections of the same document. Combine them into one single, coherent, well-organized summary of the entire document."
+
     reduce_prompt = ChatPromptTemplate.from_messages([
-        ("system", "The following are summaries of different sections of the same document. Combine them into one single, coherent, well-organized summary of the entire document."),
+        ("system", reduce_instruction),
         ("human", "{combined_summaries}")
     ])
     reduce_chain = reduce_prompt | llm_large
@@ -625,23 +635,67 @@ def map_reduce_summarize(full_text: str) -> str:
     try:
         final_result = reduce_chain.invoke({"combined_summaries": combined})
         return final_result.content
-    except Exception:
+    except Exception as e:
+        print(f"REDUCE STEP FAILED: {e}")
         return "\n\n---\n\n".join(section_summaries)
+        
+
+def get_all_pdf_paths_for_thread(thread_id: str) -> list:
+    """Find ALL distinct PDF paths uploaded in this thread"""
+    results = vectorstore.similarity_search(
+        "summary",
+        k=50,
+        filter={"thread_id": thread_id}
+    )
+    seen = set()
+    paths = []
+    for r in results:
+        path = r.metadata.get("pdf_path")
+        if path and path not in seen:
+            seen.add(path)
+            paths.append(path)
+    return paths
 
 def summary_node(state: AgentState) -> AgentState:
     """Generate a full-document summary for the PDF uploaded in this conversation"""
 
-    pdf_path = get_pdf_path_for_thread(state["thread_id"])
-    if not pdf_path:
+    all_paths = get_all_pdf_paths_for_thread(state["thread_id"])
+
+    if not all_paths:
         return {"final_answer": "I couldn't find a PDF uploaded in this conversation to summarize."}
 
-    local_file = download_pdf_from_supabase(pdf_path)
+    filenames = [p.split("/")[-1] for p in all_paths]
+
+    if len(all_paths) == 1:
+        selected_path = all_paths[0]
+    else:
+        question_lower = state["question"].lower()
+        common_words = {"the", "a", "an", "of", "for", "and", "pdf", "file", "document", "guide"}
+
+        matches = []
+        for path, name in zip(all_paths, filenames):
+            name_words = name.replace(".pdf", "").replace("_", " ").replace("-", " ").lower().split()
+            keywords = [w for w in name_words if w not in common_words and len(w) > 2]
+            if any(word in question_lower for word in keywords):
+                matches.append(path)
+
+        if len(matches) == 1:
+            selected_path = matches[0]
+        else:
+            file_list = "\n".join([f"- {name}" for name in filenames])
+            return {
+                "final_answer": f"You've uploaded {len(filenames)} documents in this conversation:\n{file_list}\n\nWhich one would you like me to summarize? Please mention part of the file name (e.g. \"the CNN one\" or \"LangChain guide\")."
+            }
+
+    local_file = download_pdf_from_supabase(selected_path)
 
     try:
         loader = PyPDFLoader(local_file)
         docs = loader.load()
         full_text = "\n\n".join([d.page_content for d in docs])
-        summary = map_reduce_summarize(full_text)
+        short_keywords = ["short", "brief", "quick", "concise", "in short", "briefly"]
+        is_short = any(word in state["question"].lower() for word in short_keywords)
+        summary = map_reduce_summarize(full_text, short=is_short)
     finally:
         os.remove(local_file)
 

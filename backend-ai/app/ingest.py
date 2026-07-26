@@ -8,29 +8,30 @@ from langchain_community.document_loaders import (
 from app.config import vectorstore, supabase, SUPABASE_BUCKET
 import os
 
-def upload_pdf_to_supabase(filename: str, thread_id: str) -> str:
-    """Upload the original PDF file to Supabase Storage, return its storage path"""
-    storage_path = f"{thread_id}/{os.path.basename(filename)}"
 
+def upload_pdf_to_supabase(filename: str, thread_id: str, display_name: str = None) -> str:
+    """Upload the original PDF file to Supabase Storage, return its storage path"""
+    name = display_name if display_name else os.path.basename(filename)
+    storage_path = f"{thread_id}/{name}"
     with open(filename, "rb") as f:
         supabase.storage.from_(SUPABASE_BUCKET).upload(
             path=storage_path,
             file=f.read(),
             file_options={"content-type": "application/pdf", "upsert": "true"}
         )
-
     return storage_path
 
 
-def load_and_split(source_type: str, source: str, thread_id: str) -> list:
+def load_and_split(source_type: str, source: str, thread_id: str, original_filename: str = None) -> list:
     """Load documents from any source and split into chunks."""
     text_splitter = RecursiveCharacterTextSplitter(
         chunk_size=1000,
         chunk_overlap=200
     )
-    pdf_path = None                                          
+    pdf_path = None
     if source_type == "pdf":
-        pdf_path = upload_pdf_to_supabase(source, thread_id)  
+        name_to_use = original_filename if original_filename else source
+        pdf_path = upload_pdf_to_supabase(source, thread_id, display_name=name_to_use)
         loader = PyPDFLoader(source)
         documents = loader.load()
     elif source_type == "url":
@@ -47,14 +48,15 @@ def load_and_split(source_type: str, source: str, thread_id: str) -> list:
     for chunk in chunks:
         chunk.metadata["thread_id"] = thread_id
         chunk.metadata["source_type"] = source_type
-        if pdf_path:                                      
-            chunk.metadata["pdf_path"] = pdf_path              
+        if pdf_path:
+            chunk.metadata["pdf_path"] = pdf_path
     return chunks
 
-def ingest_document(source_type: str, source: str, thread_id: str) -> dict:
+
+def ingest_document(source_type: str, source: str, thread_id: str, original_filename: str = None) -> dict:
     """Main ingestion function called by FastAPI."""
     try:
-        chunks = load_and_split(source_type, source, thread_id)
+        chunks = load_and_split(source_type, source, thread_id, original_filename)
         vectorstore.add_documents(chunks)
         return {
             "success": True,

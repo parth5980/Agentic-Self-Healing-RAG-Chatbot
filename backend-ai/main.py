@@ -3,6 +3,8 @@ import json
 from fastapi import FastAPI, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
+from app.config import index, supabase, SUPABASE_BUCKET
+from app.config import vectorstore
 from pydantic import BaseModel
 from typing import List, Optional
 import shutil
@@ -147,7 +149,7 @@ async def ingest(
         temp_path = f"temp_{file.filename}"
         with open(temp_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
-        result = ingest_document("pdf", temp_path, thread_id)
+        result = ingest_document("pdf", temp_path, thread_id, original_filename=file.filename)
         os.remove(temp_path)
         return result
 
@@ -156,6 +158,56 @@ async def ingest(
         return result
 
     return {"success": False, "message": "No source provided"}
+
+@app.get("/list-documents")
+def list_documents(thread_id: str):
+    """List all distinct documents (PDFs) uploaded in a given thread"""
+    results = vectorstore.similarity_search(
+        "list",
+        k=50,
+        filter={"thread_id": thread_id}
+    )
+
+    seen_paths = set()
+    documents = []
+    for r in results:
+        path = r.metadata.get("pdf_path")
+        if path and path not in seen_paths:
+            seen_paths.add(path)
+            documents.append({
+                "pdf_path": path,
+                "filename": path.split("/")[-1]
+            })
+
+    if not documents:
+        return {"success": True, "documents": [], "message": "No PDF has been uploaded in this conversation."}
+
+    return {"success": True, "documents": documents}
+
+
+@app.delete("/delete-document")
+def delete_document(thread_id: str, filename: str):
+    """Delete one specific document's chunks from Pinecone and its file from Supabase, by filename"""
+
+    pdf_path = f"{thread_id}/{filename}"
+
+    # Check if this document actually exists before trying to delete it
+    existing = vectorstore.similarity_search(
+        "check",
+        k=1,
+        filter={"thread_id": thread_id, "pdf_path": pdf_path}
+    )
+
+    if not existing:
+        return {"success": False, "message": f"No document named '{filename}' found in this conversation."}
+
+    try:
+        index.delete(filter={"thread_id": thread_id, "pdf_path": pdf_path})
+        supabase.storage.from_(SUPABASE_BUCKET).remove([pdf_path])
+        return {"success": True, "message": f"Deleted document: {filename}"}
+    except Exception as e:
+        return {"success": False, "message": "Something went wrong while deleting this document. Please try again."}
+
 
 @app.get("/health")
 def health():
