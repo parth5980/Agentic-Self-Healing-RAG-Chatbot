@@ -36,6 +36,11 @@ chatRouter.post("/chat", chatController.sendMessage);
  */
 chatRouter.post("/ingest", upload.single("file"), chatController.ingest);
 
+/**
+ * GET /api/chat/thread/:threadId/sources
+ */
+chatRouter.get("/thread/:threadId/sources", chatController.getThreadSources);
+
 export default chatRouter;
 
 // chatRouter.post("/test", async(req, res) => {

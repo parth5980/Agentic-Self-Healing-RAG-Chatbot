@@ -1,4 +1,5 @@
 import Thread from "../models/thread.model.js";
+import Source from "../models/source.model.js";
 import {
   streamAIResponse,
   ingestSource,
@@ -235,5 +236,23 @@ export async function ingest(req, res) {
   } catch (err) {
     console.log(err);
     res.status(500).json({ error: "Failed to ingest source" });
+  }
+}
+
+// GET /api/chat/thread/:threadId/sources
+export async function getThreadSources(req, res) {
+  const { threadId } = req.params;
+  try {
+    const thread = await Thread.findOne({ thread_id: threadId });
+    if (thread && thread.author?.toString() !== req.user.id) {
+      return res
+        .status(403)
+        .json({ error: "You don't have access to this thread" });
+    }
+    const sources = await Source.find({ threadId }).sort({ createdAt: -1 });
+    res.json(sources); 
+  } catch (err) {
+    console.log(err);
+    res.status(500).json({ error: "Failed to fetch sources" });
   }
 }
