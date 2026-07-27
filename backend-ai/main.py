@@ -146,11 +146,11 @@ async def ingest(
 ):
     """Ingest a document into Pinecone"""
 
-    if source_type == "pdf" and file:
+    if source_type in ("pdf", "txt", "docx") and file:
         temp_path = f"temp_{file.filename}"
         with open(temp_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
-        result = ingest_document("pdf", temp_path, thread_id, original_filename=file.filename)
+        result = ingest_document(source_type, temp_path, thread_id, original_filename=file.filename)
         os.remove(temp_path)
         return result
 
@@ -163,8 +163,6 @@ async def ingest(
 @app.get("/list-documents")
 def list_documents(thread_id: str):
     """List all distinct sources (pdf, url, youtube, text) uploaded in a given thread"""
-
-    from app.config import vectorstore
 
     results = vectorstore.similarity_search(
         "list",
@@ -181,15 +179,13 @@ def list_documents(thread_id: str):
 
             source_type = r.metadata.get("source_type", "unknown")
             pdf_path = r.metadata.get("pdf_path")
-
-            if source_type == "pdf" and pdf_path:
+            
+            if source_type in ("pdf", "txt", "docx") and pdf_path:
                 display_name = pdf_path.split("/")[-1]
             elif source_type == "youtube":
-                display_name = r.metadata.get("youtube_url", "YouTube Video")
-            
+                display_name = r.metadata.get("youtube_title") or r.metadata.get("youtube_url", "YouTube Video")
             elif source_type == "url":
-                display_name = r.metadata.get("original_url", "Website")
-                
+                display_name = r.metadata.get("url_title") or r.metadata.get("original_url", "Website")
             else:
                 display_name = "Uploaded text"
 
@@ -210,11 +206,9 @@ def list_documents(thread_id: str):
 def delete_source(thread_id: str, source_id: str):
     """Delete ONE specific source (pdf, url, youtube, text) by its source_id"""
 
-    from app.config import index, vectorstore, supabase, SUPABASE_BUCKET
-
     results = vectorstore.similarity_search(
         "check",
-        k=1,
+        k=1000,
         filter={"thread_id": thread_id, "source_id": source_id}
     )
 
@@ -241,7 +235,7 @@ def delete_all_sources(thread_id: str):
 
     results = vectorstore.similarity_search(
         "list",
-        k=50,
+        k=1000,
         filter={"thread_id": thread_id}
     )
 

@@ -3,25 +3,27 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.document_loaders import (
     PyPDFLoader,
     WebBaseLoader,
-    YoutubeLoader
+    YoutubeLoader,
+    TextLoader,
+    Docx2txtLoader
 )
 from app.config import vectorstore, supabase, SUPABASE_BUCKET
 import uuid
 import os
+import requests
 
 
-def upload_pdf_to_supabase(filename: str, thread_id: str, display_name: str = None) -> str:
-    """Upload the original PDF file to Supabase Storage, return its storage path"""
+def upload_file_to_supabase(filename: str, thread_id: str, display_name: str = None, content_type: str = "application/octet-stream") -> str:
+    """Upload the original file to Supabase Storage, return its storage path"""
     name = display_name if display_name else os.path.basename(filename)
     storage_path = f"{thread_id}/{name}"
     with open(filename, "rb") as f:
         supabase.storage.from_(SUPABASE_BUCKET).upload(
             path=storage_path,
             file=f.read(),
-            file_options={"content-type": "application/pdf", "upsert": "true"}
+            file_options={"content-type": content_type, "upsert": "true"}
         )
     return storage_path
-
 
 def load_and_split(source_type: str, source: str, thread_id: str, original_filename: str = None):
     """Load documents from any source and split into chunks."""
@@ -35,17 +37,31 @@ def load_and_split(source_type: str, source: str, thread_id: str, original_filen
 
     if source_type == "pdf":
         name_to_use = original_filename if original_filename else source
-        pdf_path = upload_pdf_to_supabase(source, thread_id, display_name=name_to_use)
+        pdf_path = upload_file_to_supabase(source, thread_id, display_name=name_to_use)
         loader = PyPDFLoader(source)
+        documents = loader.load()
+
+    elif source_type == "txt":
+        name_to_use = original_filename if original_filename else source
+        pdf_path = upload_file_to_supabase(source, thread_id, display_name=name_to_use)
+        loader = TextLoader(source, encoding="utf-8")
+        documents = loader.load()
+
+    elif source_type == "docx":
+        name_to_use = original_filename if original_filename else source
+        pdf_path = upload_file_to_supabase(source, thread_id, display_name=name_to_use)
+        loader = Docx2txtLoader(source)
         documents = loader.load()
 
     elif source_type == "url":
         loader = WebBaseLoader(source)
         documents = loader.load()
+        url_title = documents[0].metadata.get("title") if documents else None
 
     elif source_type == "youtube":
         loader = YoutubeLoader.from_youtube_url(source, language=["en", "hi"])
         documents = loader.load()
+        youtube_title = get_youtube_title(source)
 
     elif source_type == "text":
         documents = [Document(page_content=source)]
@@ -62,9 +78,13 @@ def load_and_split(source_type: str, source: str, thread_id: str, original_filen
     
         if source_type == "youtube":
             chunk.metadata["youtube_url"] = source
+            if youtube_title:
+                chunk.metadata["youtube_title"] = youtube_title
 
         if source_type == "url":
             chunk.metadata["original_url"] = source
+            if url_title:
+                chunk.metadata["url_title"] = url_title
 
         if pdf_path:
             chunk.metadata["pdf_path"] = pdf_path
@@ -87,3 +107,17 @@ def ingest_document(source_type: str, source: str, thread_id: str, original_file
         }
     except Exception as e:
         return {"success": False, "message": str(e)}
+
+def get_youtube_title(url: str) -> str:
+    """Fetch YouTube video title via oEmbed (no API key needed)"""
+    try:
+        resp = requests.get(
+            "https://www.youtube.com/oembed",
+            params={"url": url, "format": "json"},
+            timeout=5
+        )
+        if resp.status_code == 200:
+            return resp.json().get("title")
+    except Exception:
+        pass
+    return None

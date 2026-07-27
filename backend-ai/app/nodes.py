@@ -15,6 +15,8 @@ from app.config import supabase, SUPABASE_BUCKET
 import tempfile
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_community.document_loaders import Docx2txtLoader
+
 
 
 def format_chat_history(chat_history: List[dict]) -> str:
@@ -56,6 +58,10 @@ Examples for 'summary' (PDF-wide only):
 "summarize report1.pdf" -> summary
 "give me a summary of the CNN architectures pdf" -> summary
 "summarize the langchain guide" -> summary
+"Give me summary of deep learning pdf" -> summary
+"Summarize the deep learning document" -> summary
+"Summarize my deep learning.pdf" -> summary
+"Give overview of deep learning pdf" -> summary
 
 Examples for 'rag' (specific facts, or non-PDF summaries):
 "Give summary of the youtube video I shared" -> rag
@@ -82,7 +88,10 @@ Examples for 'web':
 "who is the current prime minister of India" -> web
 "what's the stock price of X today" -> web
 
-Rule: if the query could reasonably be about content the user has already ingested and there is any ambiguity, choose 'rag' over 'chat' or 'web'. Only choose 'summary' when it is unmistakably a request for a whole-PDF summary — if in doubt between 'summary' and 'rag', choose 'rag'.
+Rule:
+- If the user requests a summary or overview of an uploaded document (even if they mention the document name, such as "deep learning pdf", "CNN report", or "LangChain guide"), classify it as 'summary'.
+- Choose 'rag' only when the user asks about a specific section, fact, concept, or detail within the document.
+- If the query could reasonably be about content the user has already ingested and there is any ambiguity between 'rag', 'chat', or 'web', choose 'rag'.
 
 Respond with ONLY one word: 'summary', 'rag', 'chat' or 'web'. Nothing else."""),
         ("human", """{history}Current question: {question}""")
@@ -574,15 +583,15 @@ Question: {question}""")
     return {"final_answer": answer + citation_text}
 
 def get_all_pdf_paths_for_thread(thread_id: str) -> list:
-    """Find ALL distinct PDF paths uploaded in this thread (PDFs only, not YouTube/URL link references)"""
     results = vectorstore.similarity_search(
-        "summary",
-        k=50,
-        filter={"thread_id": thread_id, "source_type": "pdf"}
+        "summary", k=50,
+        filter={"thread_id": thread_id}
     )
     seen = set()
     paths = []
     for r in results:
+        if r.metadata.get("source_type") not in ("pdf", "txt", "docx"):
+            continue
         path = r.metadata.get("pdf_path")
         if path and path not in seen:
             seen.add(path)
@@ -590,13 +599,11 @@ def get_all_pdf_paths_for_thread(thread_id: str) -> list:
     return paths
 
 def download_pdf_from_supabase(storage_path: str) -> str:
-    """Download a PDF from Supabase Storage to a unique local temp file"""
     response = supabase.storage.from_(SUPABASE_BUCKET).download(storage_path)
-
-    temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
+    ext = os.path.splitext(storage_path)[1] or ".pdf"
+    temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=ext)
     temp_file.write(response)
     temp_file.close()
-
     return temp_file.name
     
 def map_reduce_summarize(full_text: str, short: bool = False) -> str:
@@ -678,10 +685,17 @@ def summary_node(state: AgentState) -> AgentState:
     local_file = download_pdf_from_supabase(selected_path)
 
     try:
-        loader = PyPDFLoader(local_file)
-        docs = loader.load()
-        full_text = "\n\n".join([d.page_content for d in docs])
-        
+        if local_file.endswith(".docx"):
+            docs = Docx2txtLoader(local_file).load()
+            full_text = "\n\n".join(d.page_content for d in docs)
+        elif local_file.endswith(".txt"):
+            with open(local_file, "r", encoding="utf-8", errors="ignore") as f:
+                full_text = f.read()
+        else:
+            loader = PyPDFLoader(local_file)
+            docs = loader.load()
+            full_text = "\n\n".join([d.page_content for d in docs])
+
         question_lower = state["question"].lower()
 
         short_keywords = ["short", "brief", "quick", "concise", "in short", "briefly"]
