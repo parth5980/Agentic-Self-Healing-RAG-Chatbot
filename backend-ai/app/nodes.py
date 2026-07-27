@@ -8,6 +8,7 @@ from app.config import (
     llm_small, llm_large, vectorstore,
     JINA_API_KEY, TAVILY_API_KEY
 )
+import re
 from app.state import AgentState
 import os
 from app.config import supabase, SUPABASE_BUCKET
@@ -572,17 +573,21 @@ Question: {question}""")
 
     return {"final_answer": answer + citation_text}
 
-def get_pdf_path_for_thread(thread_id: str) -> str:
-    """Find the original PDF's Supabase path for a given thread_id"""
+def get_all_pdf_paths_for_thread(thread_id: str) -> list:
+    """Find ALL distinct PDF paths uploaded in this thread (PDFs only, not YouTube/URL link references)"""
     results = vectorstore.similarity_search(
         "summary",
-        k=1,
-        filter={"thread_id": thread_id}
+        k=50,
+        filter={"thread_id": thread_id, "source_type": "pdf"}
     )
-    if not results:
-        return None
-    return results[0].metadata.get("pdf_path")
-
+    seen = set()
+    paths = []
+    for r in results:
+        path = r.metadata.get("pdf_path")
+        if path and path not in seen:
+            seen.add(path)
+            paths.append(path)
+    return paths
 
 def download_pdf_from_supabase(storage_path: str) -> str:
     """Download a PDF from Supabase Storage to a unique local temp file"""
@@ -638,23 +643,6 @@ def map_reduce_summarize(full_text: str, short: bool = False) -> str:
     except Exception as e:
         print(f"REDUCE STEP FAILED: {e}")
         return "\n\n---\n\n".join(section_summaries)
-        
-
-def get_all_pdf_paths_for_thread(thread_id: str) -> list:
-    """Find ALL distinct PDF paths uploaded in this thread"""
-    results = vectorstore.similarity_search(
-        "summary",
-        k=50,
-        filter={"thread_id": thread_id}
-    )
-    seen = set()
-    paths = []
-    for r in results:
-        path = r.metadata.get("pdf_path")
-        if path and path not in seen:
-            seen.add(path)
-            paths.append(path)
-    return paths
 
 def summary_node(state: AgentState) -> AgentState:
     """Generate a full-document summary for the PDF uploaded in this conversation"""
@@ -693,8 +681,14 @@ def summary_node(state: AgentState) -> AgentState:
         loader = PyPDFLoader(local_file)
         docs = loader.load()
         full_text = "\n\n".join([d.page_content for d in docs])
+        
+        question_lower = state["question"].lower()
+
         short_keywords = ["short", "brief", "quick", "concise", "in short", "briefly"]
-        is_short = any(word in state["question"].lower() for word in short_keywords)
+        has_short_keyword = any(word in question_lower for word in short_keywords)
+        has_line_count = bool(re.search(r'\d+\s*(to|-|and)?\s*\d*\s*(line|lines|point|points|sentence|sentences)', question_lower))
+
+        is_short = has_short_keyword or has_line_count
         summary = map_reduce_summarize(full_text, short=is_short)
     finally:
         os.remove(local_file)

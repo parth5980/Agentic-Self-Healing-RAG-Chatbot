@@ -6,6 +6,7 @@ from langchain_community.document_loaders import (
     YoutubeLoader
 )
 from app.config import vectorstore, supabase, SUPABASE_BUCKET
+import uuid
 import os
 
 
@@ -22,45 +23,58 @@ def upload_pdf_to_supabase(filename: str, thread_id: str, display_name: str = No
     return storage_path
 
 
-def load_and_split(source_type: str, source: str, thread_id: str, original_filename: str = None) -> list:
+def load_and_split(source_type: str, source: str, thread_id: str, original_filename: str = None):
     """Load documents from any source and split into chunks."""
     text_splitter = RecursiveCharacterTextSplitter(
         chunk_size=1000,
         chunk_overlap=200
     )
+
+    source_id = str(uuid.uuid4())
     pdf_path = None
+
     if source_type == "pdf":
         name_to_use = original_filename if original_filename else source
         pdf_path = upload_pdf_to_supabase(source, thread_id, display_name=name_to_use)
         loader = PyPDFLoader(source)
         documents = loader.load()
+
     elif source_type == "url":
         loader = WebBaseLoader(source)
         documents = loader.load()
+
     elif source_type == "youtube":
         loader = YoutubeLoader.from_youtube_url(source, language=["en", "hi"])
         documents = loader.load()
+
     elif source_type == "text":
         documents = [Document(page_content=source)]
+
     else:
         raise ValueError(f"Invalid source_type: {source_type}")
+
     chunks = text_splitter.split_documents(documents)
+
     for chunk in chunks:
         chunk.metadata["thread_id"] = thread_id
         chunk.metadata["source_type"] = source_type
+        chunk.metadata["source_id"] = source_id
+
         if pdf_path:
             chunk.metadata["pdf_path"] = pdf_path
-    return chunks
+
+    return chunks, source_id
 
 
 def ingest_document(source_type: str, source: str, thread_id: str, original_filename: str = None) -> dict:
     """Main ingestion function called by FastAPI."""
     try:
-        chunks = load_and_split(source_type, source, thread_id, original_filename)
+        chunks, source_id = load_and_split(source_type, source, thread_id, original_filename)
         vectorstore.add_documents(chunks)
         return {
             "success": True,
-            "message": f"Successfully ingested {len(chunks)} chunks from {source_type}"
+            "message": f"Successfully ingested {len(chunks)} chunks from {source_type}",
+            "source_id": source_id
         }
     except Exception as e:
         return {"success": False, "message": str(e)}

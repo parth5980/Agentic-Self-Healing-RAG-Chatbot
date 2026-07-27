@@ -11,6 +11,7 @@ import shutil
 import os
 
 from app.graph import app as rag_app
+from app.config import index, supabase, SUPABASE_BUCKET, vectorstore
 from app.ingest import ingest_document
 
 # FastAPI app
@@ -161,53 +162,103 @@ async def ingest(
 
 @app.get("/list-documents")
 def list_documents(thread_id: str):
-    """List all distinct documents (PDFs) uploaded in a given thread"""
+    """List all distinct sources (pdf, url, youtube, text) uploaded in a given thread"""
+
+    from app.config import vectorstore
+
     results = vectorstore.similarity_search(
         "list",
         k=50,
         filter={"thread_id": thread_id}
     )
 
-    seen_paths = set()
+    seen_ids = set()
     documents = []
     for r in results:
-        path = r.metadata.get("pdf_path")
-        if path and path not in seen_paths:
-            seen_paths.add(path)
+        source_id = r.metadata.get("source_id")
+        if source_id and source_id not in seen_ids:
+            seen_ids.add(source_id)
+
+            source_type = r.metadata.get("source_type", "unknown")
+            pdf_path = r.metadata.get("pdf_path")
+
+            if source_type == "pdf" and pdf_path:
+                display_name = pdf_path.split("/")[-1]
+            elif source_type in ("url", "youtube"):
+                display_name = r.metadata.get("source", f"{source_type} content")
+            else:
+                display_name = "Uploaded text"
+
             documents.append({
-                "pdf_path": path,
-                "filename": path.split("/")[-1]
+                "source_id": source_id,
+                "source_type": source_type,
+                "display_name": display_name
             })
 
     if not documents:
-        return {"success": True, "documents": [], "message": "No PDF has been uploaded in this conversation."}
+        return {"success": True, "documents": [], "message": "No sources uploaded in this conversation."}
 
     return {"success": True, "documents": documents}
 
 
-@app.delete("/delete-document")
-def delete_document(thread_id: str, filename: str):
-    """Delete one specific document's chunks from Pinecone and its file from Supabase, by filename"""
 
-    pdf_path = f"{thread_id}/{filename}"
+@app.delete("/delete-source")
+def delete_source(thread_id: str, source_id: str):
+    """Delete ONE specific source (pdf, url, youtube, text) by its source_id"""
 
-    # Check if this document actually exists before trying to delete it
-    existing = vectorstore.similarity_search(
+    from app.config import index, vectorstore, supabase, SUPABASE_BUCKET
+
+    results = vectorstore.similarity_search(
         "check",
         k=1,
-        filter={"thread_id": thread_id, "pdf_path": pdf_path}
+        filter={"thread_id": thread_id, "source_id": source_id}
     )
 
-    if not existing:
-        return {"success": False, "message": f"No document named '{filename}' found in this conversation."}
+    if not results:
+        return {"success": False, "message": f"No source found with id: {source_id}"}
 
-    try:
-        index.delete(filter={"thread_id": thread_id, "pdf_path": pdf_path})
-        supabase.storage.from_(SUPABASE_BUCKET).remove([pdf_path])
-        return {"success": True, "message": f"Deleted document: {filename}"}
-    except Exception as e:
-        return {"success": False, "message": "Something went wrong while deleting this document. Please try again."}
+    pdf_path = results[0].metadata.get("pdf_path")
+    if pdf_path:
+        print(f"Attempting to delete Supabase path: {pdf_path}")
+        try:
+            remove_response = supabase.storage.from_(SUPABASE_BUCKET).remove([pdf_path])
+            print(f"Supabase remove() response: {remove_response}")
+        except Exception as e:
+            print(f"Supabase delete failed for {pdf_path}: {e}")
 
+    index.delete(filter={"thread_id": thread_id, "source_id": source_id})
+
+    return {"success": True, "message": "Source deleted successfully"}
+
+
+@app.delete("/delete-all-sources")
+def delete_all_sources(thread_id: str):
+    """Delete ALL sources uploaded in a given conversation thread"""
+
+    results = vectorstore.similarity_search(
+        "list",
+        k=50,
+        filter={"thread_id": thread_id}
+    )
+
+    if not results:
+        return {"success": False, "message": "No sources found in this conversation."}
+
+    seen_paths = set()
+    for r in results:
+        pdf_path = r.metadata.get("pdf_path")
+        if pdf_path and pdf_path not in seen_paths:
+            seen_paths.add(pdf_path)
+            try:
+                supabase.storage.from_(SUPABASE_BUCKET).remove([pdf_path])
+            except Exception:
+                pass
+
+    index.delete(filter={"thread_id": thread_id})
+
+    return {"success": True, "message": f"Deleted all sources in thread: {thread_id}"}
+
+    
 
 @app.get("/health")
 def health():
