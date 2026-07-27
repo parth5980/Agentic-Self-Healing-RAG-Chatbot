@@ -15,7 +15,7 @@ export async function register(req, res) {
   });
 
   if (isAlreadyRegistered) {
-    res.status(409).json({
+    return res.status(409).json({
       message: "Username or email already exists",
     });
   }
@@ -236,7 +236,7 @@ export async function logout(req, res) {
   if (!refreshToken) {
     return res.status(400).json({
       message: "Refresh token not found",
-      cookies: req.cookie,
+      cookies: req.cookies,
     });
   }
 
@@ -326,4 +326,28 @@ export async function verifyEmail(req, res) {
       verified: user.verified,
     },
   });
+}
+
+export async function resendOtp(req, res) {
+  const { email } = req.body;
+  const user = await userModel.findOne({ email });
+
+  if (!user)
+    return res.status(404).json({ message: "No account found for this email" });
+  if (user.verified)
+    return res.status(400).json({ message: "Email is already verified" });
+
+  await otpModel.deleteMany({ user: user._id });
+
+  const otp = generateOtp();
+  const otpHash = crypto.createHash("sha256").update(otp).digest("hex");
+  await otpModel.create({ email, user: user._id, otpHash });
+  await sendEmail(
+    email,
+    "OTP Verification",
+    `Your OTP code is ${otp}`,
+    getOtpHtml(otp),
+  );
+
+  res.status(200).json({ message: "OTP resent successfully" });
 }

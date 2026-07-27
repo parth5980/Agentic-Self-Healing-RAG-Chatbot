@@ -18,14 +18,94 @@ import config from "../config/config.js";
  * @param {Array<{role: string, content: string}>} [params.chatHistory] Prior turns only — do NOT include the current message here, backend-ai already receives it separately.
  * @param {(status: string) => void} [params.onStatus] Optional callback for live status updates
  */
-export async function getAIResponse({
+// export async function getAIResponse({
+//   message,
+//   threadId,
+//   chatHistory = [],
+//   onStatus,
+// }) {
+//   let response;
+
+//   try {
+//     response = await fetch(`${config.AI_BACKEND_URL}/chat`, {
+//       method: "POST",
+//       headers: { "Content-Type": "application/json" },
+//       body: JSON.stringify({
+//         message,
+//         thread_id: threadId,
+//         chat_history: chatHistory,
+//       }),
+//     });
+//   } catch (err) {
+//     // Most commonly: backend-ai isn't running, or AI_BACKEND_URL is wrong
+//     throw new Error(`Could not reach AI backend: ${err.message}`);
+//   }
+
+//   if (!response.ok || !response.body) {
+//     throw new Error(`AI backend responded with status ${response.status}`);
+//   }
+
+//   //   console.log(response);
+
+//   // Read the SSE stream from backend-ai and parse it
+//   const reader = response.body.getReader(); // ReadableStreamDefaultReader<Uint8Array>
+//   const decoder = new TextDecoder(); // Decode Uint8Array chunks into strings
+//   let buffer = "";
+//   let finalAnswer = null;
+
+//   // Read the stream until it's done, parsing SSE events as they arrive
+//   while (true) {
+//     const { done, value } = await reader.read(); // { done: boolean, value: Uint8Array }
+//     if (done) break; // Stream finished
+
+//     buffer += decoder.decode(value, { stream: true }); // Append new chunk to buffer
+
+//     // SSE events are separated by a blank line ("\n\n")
+//     const events = buffer.split("\n\n");
+//     buffer = events.pop(); // last chunk may be incomplete, keep it for next read
+
+//     // Process each complete SSE event
+//     for (const event of events) {
+//       const line = event.trim(); // Skip empty lines
+//       if (!line.startsWith("data:")) continue; // Only process lines starting with "data:"
+
+//       const payload = JSON.parse(line.slice(5).trim()); // Parse the JSON after "data:"
+
+//       // Handle the payload based on its type
+//       if (payload.type === "status") {
+//         // Intermediate status message
+//         onStatus?.(payload.message); // Call the optional callback with the status message
+//       } else if (payload.type === "answer") {
+//         // Final answer from the AI backend
+//         finalAnswer = payload.content; // Store the final answer, but keep reading until we get a "done" event
+//       } else if (payload.type === "error") {
+//         // Pipeline failed, throw an error with the message
+//         throw new Error(`AI backend pipeline error: ${payload.message}`);
+//       }
+//     }
+//   }
+
+//   if (finalAnswer === null) {
+//     throw new Error("AI backend stream ended without producing an answer");
+//   }
+
+//   return finalAnswer;
+// }
+
+/**
+ * Same SSE consumption as before, but instead of resolving only once the
+ * whole stream is drained, it forwards every event to onEvent as it
+ * arrives. The final answer is still returned at the end so the caller
+ * can persist it to the DB.
+ */
+export async function streamAIResponse({
   message,
   threadId,
   chatHistory = [],
-  onStatus,
+  onEvent,
+  signal,
 }) {
   let response;
-
   try {
     response = await fetch(`${config.AI_BACKEND_URL}/chat`, {
       method: "POST",
@@ -35,9 +115,9 @@ export async function getAIResponse({
         thread_id: threadId,
         chat_history: chatHistory,
       }),
+      signal,
     });
   } catch (err) {
-    // Most commonly: backend-ai isn't running, or AI_BACKEND_URL is wrong
     throw new Error(`Could not reach AI backend: ${err.message}`);
   }
 
@@ -45,43 +125,29 @@ export async function getAIResponse({
     throw new Error(`AI backend responded with status ${response.status}`);
   }
 
-  //   console.log(response);
-
-  // Read the SSE stream from backend-ai and parse it
-  const reader = response.body.getReader(); // ReadableStreamDefaultReader<Uint8Array>
-  const decoder = new TextDecoder(); // Decode Uint8Array chunks into strings
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
   let buffer = "";
   let finalAnswer = null;
 
-  // Read the stream until it's done, parsing SSE events as they arrive
   while (true) {
-    const { done, value } = await reader.read(); // { done: boolean, value: Uint8Array }
-    if (done) break; // Stream finished
+    const { done, value } = await reader.read();
+    if (done) break;
 
-    buffer += decoder.decode(value, { stream: true }); // Append new chunk to buffer
-
-    // SSE events are separated by a blank line ("\n\n")
+    buffer += decoder.decode(value, { stream: true });
     const events = buffer.split("\n\n");
-    buffer = events.pop(); // last chunk may be incomplete, keep it for next read
+    buffer = events.pop();
 
-    // Process each complete SSE event
     for (const event of events) {
-      const line = event.trim(); // Skip empty lines
-      if (!line.startsWith("data:")) continue; // Only process lines starting with "data:"
+      const line = event.trim();
+      if (!line.startsWith("data:")) continue;
 
-      const payload = JSON.parse(line.slice(5).trim()); // Parse the JSON after "data:"
+      const payload = JSON.parse(line.slice(5).trim());
+      onEvent?.(payload); // <-- forwarded to the browser in real time
 
-      // Handle the payload based on its type
-      if (payload.type === "status") {
-        // Intermediate status message
-        onStatus?.(payload.message); // Call the optional callback with the status message
-      } else if (payload.type === "answer") {
-        // Final answer from the AI backend
-        finalAnswer = payload.content; // Store the final answer, but keep reading until we get a "done" event
-      } else if (payload.type === "error") {
-        // Pipeline failed, throw an error with the message
+      if (payload.type === "answer") finalAnswer = payload.content;
+      if (payload.type === "error")
         throw new Error(`AI backend pipeline error: ${payload.message}`);
-      }
     }
   }
 
