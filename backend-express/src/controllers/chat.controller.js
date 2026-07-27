@@ -68,57 +68,57 @@ export async function deleteThread(req, res) {
 }
 
 // POST /api/chat/chat
-// export async function sendMessage(req, res) {
-//   const { threadId, message } = req.body;
+/* export async function sendMessage(req, res) {
+  const { threadId, message } = req.body;
 
-//   if (!threadId || !message) {
-//     return res.status(400).json({ error: "missing required fields" });
-//   }
+  if (!threadId || !message) {
+    return res.status(400).json({ error: "missing required fields" });
+  }
 
-//   try {
-//     let thread = await Thread.findOne({ thread_id: threadId });
-//     let chatHistory = [];
+  try {
+    let thread = await Thread.findOne({ thread_id: threadId });
+    let chatHistory = [];
 
-//     if (!thread) {
-//       thread = new Thread({
-//         thread_id: threadId,
-//         author: req.user.id,
-//         title: message.slice(0, 60),
-//         messages: [],
-//       });
-//     } else if (thread.author?.toString() !== req.user.id) {
-//       // Someone is trying to post into a thread they don't own
-//       return res
-//         .status(403)
-//         .json({ error: "You don't have access to this thread" });
-//     } else {
-//       // Snapshot the history BEFORE adding the current turn — backend-ai
-//       // receives the current question separately as `message`, so it
-//       // shouldn't also be the last item in chat_history.
-//       chatHistory = thread.messages.map(({ role, content }) => ({
-//         role,
-//         content,
-//       }));
-//     }
+    if (!thread) {
+      thread = new Thread({
+        thread_id: threadId,
+        author: req.user.id,
+        title: message.slice(0, 60),
+        messages: [],
+      });
+    } else if (thread.author?.toString() !== req.user.id) {
+      // Someone is trying to post into a thread they don't own
+      return res
+        .status(403)
+        .json({ error: "You don't have access to this thread" });
+    } else {
+      // Snapshot the history BEFORE adding the current turn — backend-ai
+      // receives the current question separately as `message`, so it
+      // shouldn't also be the last item in chat_history.
+      chatHistory = thread.messages.map(({ role, content }) => ({
+        role,
+        content,
+      }));
+    }
 
-//     thread.messages.push({ role: "user", content: message });
+    thread.messages.push({ role: "user", content: message });
 
-//     const assistantReply = await getAIResponse({
-//       message,
-//       threadId,
-//       chatHistory,
-//     });
+    const assistantReply = await getAIResponse({
+      message,
+      threadId,
+      chatHistory,
+    });
 
-//     thread.messages.push({ role: "assistant", content: assistantReply });
-//     thread.updatedAt = new Date();
+    thread.messages.push({ role: "assistant", content: assistantReply });
+    thread.updatedAt = new Date();
 
-//     await thread.save();
-//     res.json({ reply: assistantReply });
-//   } catch (err) {
-//     console.log(err);
-//     res.status(500).json({ error: "something went wrong" });
-//   }
-// }
+    await thread.save();
+    res.json({ reply: assistantReply });
+  } catch (err) {
+    console.log(err);
+    res.status(500).json({ error: "something went wrong" });
+  }
+} */
 
 // POST /api/chat/chat — now streams Server-Sent Events instead of one JSON blob
 export async function sendMessage(req, res) {

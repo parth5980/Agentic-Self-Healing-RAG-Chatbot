@@ -69,6 +69,15 @@ export default function ChatWindow({ threadId, threadTitle, onMessageSent }) {
     });
   };
 
+  const refreshSourcesCount = async () => {
+    try {
+      const { data } = await chatService.getThreadSources(threadId);
+      setSourcesCount(data.length);
+    } catch {
+      setSourcesCount(0);
+    }
+  };
+
   return (
     <div className="flex-1 flex flex-col h-screen bg-black">
       <header className="flex items-center justify-between px-6 py-4 border-b border-zinc-900">
@@ -139,7 +148,11 @@ export default function ChatWindow({ threadId, threadTitle, onMessageSent }) {
       </form>
 
       {showAddSources && (
-        <KnowledgeSourcesModal onClose={() => setShowAddSources(false)} />
+        <KnowledgeSourcesModal
+          threadId={threadId}
+          onClose={() => setShowAddSources(false)}
+          onSourceAdded={refreshSourcesCount}
+        />
       )}
       {showSourcesList && (
         <ChatSourcesModal
@@ -149,6 +162,7 @@ export default function ChatWindow({ threadId, threadTitle, onMessageSent }) {
             setShowSourcesList(false);
             setShowAddSources(true);
           }}
+          onSourcesChanged={refreshSourcesCount}
         />
       )}
     </div>

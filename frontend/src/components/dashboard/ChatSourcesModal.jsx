@@ -1,15 +1,28 @@
 import { useEffect, useState } from "react";
-import { X, FileText, Link2, MonitorPlay, Trash2 } from "lucide-react";
+import { X, FileText, Link2, Youtube, Trash2, Loader2 } from "lucide-react";
 import { chatService } from "../../api/chatService";
 
-const ICONS = { pdf: FileText, url: Link2, youtube: MonitorPlay, text: FileText };
+const ICONS = { pdf: FileText, url: Link2, youtube: Youtube, text: FileText };
+const LABELS = {
+  pdf: "FILES",
+  url: "URLS",
+  youtube: "YOUTUBE LINKS",
+  text: "TEXT",
+};
 
-export default function ChatSourcesModal({ threadId, onClose, onAddNew }) {
+export default function ChatSourcesModal({
+  threadId,
+  onClose,
+  onAddNew,
+  onSourcesChanged,
+}) {
   const [sources, setSources] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [deletingId, setDeletingId] = useState(null);
 
   useEffect(() => {
     (async () => {
+      setLoading(true);
       try {
         const { data } = await chatService.getThreadSources(threadId);
         setSources(data);
@@ -21,11 +34,23 @@ export default function ChatSourcesModal({ threadId, onClose, onAddNew }) {
     })();
   }, [threadId]);
 
-  const grouped = {
-    pdf: sources.filter((s) => s.sourceType === "pdf"),
-    url: sources.filter((s) => s.sourceType === "url"),
-    youtube: sources.filter((s) => s.sourceType === "youtube"),
+  const handleDelete = async (sourceId) => {
+    setDeletingId(sourceId);
+    try {
+      await chatService.deleteThreadSource(threadId, sourceId);
+      setSources((prev) => prev.filter((s) => s.source_id !== sourceId));
+      onSourcesChanged?.();
+    } catch (err) {
+      console.error("Failed to delete source", err);
+    } finally {
+      setDeletingId(null);
+    }
   };
+
+  const grouped = sources.reduce((acc, s) => {
+    (acc[s.source_type] ||= []).push(s);
+    return acc;
+  }, {});
 
   return (
     <div
@@ -48,54 +73,48 @@ export default function ChatSourcesModal({ threadId, onClose, onAddNew }) {
 
         <div className="max-h-96 overflow-y-auto px-5 py-4 space-y-5">
           {loading && <p className="text-sm text-gray-500">Loading...</p>}
-
           {!loading && sources.length === 0 && (
             <p className="text-sm text-gray-500 text-center py-6">
               No sources yet — add a file, URL, or YouTube link to ground
               answers in this chat.
             </p>
           )}
-
           {!loading &&
-            ["pdf", "url", "youtube"].map(
-              (type) =>
-                grouped[type].length > 0 && (
-                  <div key={type}>
-                    <p className="text-xs font-semibold text-purple-400 tracking-wide mb-2">
-                      {type === "pdf" ? "FILES" : type.toUpperCase()} ·{" "}
-                      {grouped[type].length}
-                    </p>
-                    <div className="space-y-2">
-                      {grouped[type].map((s) => {
-                        const Icon = ICONS[s.sourceType];
-                        return (
-                          <div
-                            key={s._id}
-                            className="flex items-center gap-3 rounded-lg bg-zinc-900 border border-zinc-800 px-3 py-2.5">
-                            <span className="rounded-lg bg-purple-950 p-1.5">
-                              <Icon size={14} className="text-purple-400" />
-                            </span>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm text-white truncate">
-                                {s.name}
-                              </p>
-                              <p className="text-xs text-gray-500">
-                                Added{" "}
-                                {new Date(s.createdAt).toLocaleDateString()}
-                              </p>
-                            </div>
-                            <button
-                              className="text-gray-600 cursor-not-allowed"
-                              title="Delete not available yet">
-                              <Trash2 size={15} />
-                            </button>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ),
-            )}
+            Object.entries(grouped).map(([type, items]) => (
+              <div key={type}>
+                <p className="text-xs font-semibold text-purple-400 tracking-wide mb-2">
+                  {LABELS[type] || type.toUpperCase()} · {items.length}
+                </p>
+                <div className="space-y-2">
+                  {items.map((s) => {
+                    const Icon = ICONS[s.source_type] || FileText;
+                    const isDeleting = deletingId === s.source_id;
+                    return (
+                      <div
+                        key={s.source_id}
+                        className="flex items-center gap-3 rounded-lg bg-zinc-900 border border-zinc-800 px-3 py-2.5">
+                        <span className="rounded-lg bg-purple-950 p-1.5 shrink-0">
+                          <Icon size={14} className="text-purple-400" />
+                        </span>
+                        <p className="flex-1 min-w-0 text-sm text-white truncate">
+                          {s.display_name}
+                        </p>
+                        <button
+                          onClick={() => handleDelete(s.source_id)}
+                          disabled={isDeleting}
+                          className="text-gray-500 hover:text-red-400 disabled:opacity-50 shrink-0">
+                          {isDeleting ? (
+                            <Loader2 size={15} className="animate-spin" />
+                          ) : (
+                            <Trash2 size={15} />
+                          )}
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
         </div>
 
         <div className="p-4 border-t border-zinc-900">

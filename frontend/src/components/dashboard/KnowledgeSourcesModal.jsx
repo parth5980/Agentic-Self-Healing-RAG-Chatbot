@@ -1,8 +1,9 @@
 import { useState } from "react";
-import { X, Upload, Link2, MonitorPlay } from "lucide-react";
+import { X, Upload, Link2, MonitorPlay, Loader2 } from "lucide-react";
+import { chatService } from "../../api/chatService";
 
 const TABS = [
-  { id: "file", label: "Upload File", hint: "PDF, DOCX, TXT", icon: Upload },
+  { id: "file", label: "Upload File", hint: "PDF only", icon: Upload },
   { id: "url", label: "Connect URL", hint: "Web Scraping", icon: Link2 },
   {
     id: "youtube",
@@ -12,13 +13,55 @@ const TABS = [
   },
 ];
 
-export default function KnowledgeSourcesModal({ onClose }) {
+export default function KnowledgeSourcesModal({
+  threadId,
+  onClose,
+  onSourceAdded,
+}) {
   const [activeTab, setActiveTab] = useState("file");
   const [url, setUrl] = useState("");
-  const [notice, setNotice] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
-  // Ingest isn't wired to Express yet — every action here is a no-op.
-  const handleComingSoon = () => setNotice("Adding sources is coming soon.");
+  const handleFileChange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setError("");
+    setLoading(true);
+    try {
+      const { data } = await chatService.ingestFile(threadId, file);
+      if (!data.success) throw new Error(data.message);
+      onSourceAdded?.();
+      onClose();
+    } catch (err) {
+      setError(
+        err.response?.data?.error || err.message || "Could not upload file",
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAddUrl = async () => {
+    if (!url.trim()) return;
+    setError("");
+    setLoading(true);
+    try {
+      const call =
+        activeTab === "url" ? chatService.ingestUrl : chatService.ingestYoutube;
+      const { data } = await call(threadId, url.trim());
+      if (!data.success) throw new Error(data.message);
+      setUrl("");
+      onSourceAdded?.();
+      onClose();
+    } catch (err) {
+      setError(
+        err.response?.data?.error || err.message || "Could not add source",
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div
@@ -48,9 +91,10 @@ export default function KnowledgeSourcesModal({ onClose }) {
                   key={tab.id}
                   onClick={() => {
                     setActiveTab(tab.id);
-                    setNotice("");
+                    setError("");
                   }}
-                  className={`flex flex-col items-center text-center gap-1.5 rounded-xl border px-2 py-3 transition-colors ${
+                  disabled={loading}
+                  className={`flex flex-col items-center text-center gap-1.5 rounded-xl border px-2 py-3 transition-colors disabled:opacity-50 ${
                     isActive
                       ? "border-purple-500 bg-purple-950/40"
                       : "border-zinc-800 hover:border-zinc-700"
@@ -69,17 +113,23 @@ export default function KnowledgeSourcesModal({ onClose }) {
           </div>
 
           {activeTab === "file" && (
-            <label className="flex flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-zinc-700 py-6 cursor-pointer hover:border-purple-500">
-              <Upload size={18} className="text-purple-400" />
+            <label
+              className={`flex flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-zinc-700 py-6 ${loading ? "opacity-50" : "cursor-pointer hover:border-purple-500"}`}>
+              {loading ? (
+                <Loader2 size={18} className="text-purple-400 animate-spin" />
+              ) : (
+                <Upload size={18} className="text-purple-400" />
+              )}
               <span className="text-sm text-purple-300 font-medium">
-                Choose a file to upload
+                {loading ? "Uploading..." : "Choose a file to upload"}
               </span>
-              <span className="text-xs text-gray-500">PDF, DOCX, or TXT</span>
+              <span className="text-xs text-gray-500">PDF only, for now</span>
               <input
                 type="file"
-                accept=".pdf,.docx,.txt"
+                accept=".pdf"
                 className="hidden"
-                onChange={handleComingSoon}
+                onChange={handleFileChange}
+                disabled={loading}
               />
             </label>
           )}
@@ -89,6 +139,7 @@ export default function KnowledgeSourcesModal({ onClose }) {
               <input
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
+                disabled={loading}
                 placeholder={
                   activeTab === "url"
                     ? "https://docs.pnx.ai/architecture"
@@ -97,16 +148,19 @@ export default function KnowledgeSourcesModal({ onClose }) {
                 className="flex-1 rounded-lg bg-zinc-900 border border-zinc-800 px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-purple-600"
               />
               <button
-                onClick={handleComingSoon}
-                className="rounded-lg bg-purple-600 hover:bg-purple-500 px-4 text-sm font-semibold text-white">
-                {activeTab === "url" ? "Add URL" : "Add Video"}
+                onClick={handleAddUrl}
+                disabled={loading}
+                className="rounded-lg bg-purple-600 hover:bg-purple-500 disabled:opacity-50 px-4 text-sm font-semibold text-white">
+                {loading
+                  ? "Adding..."
+                  : activeTab === "url"
+                    ? "Add URL"
+                    : "Add Video"}
               </button>
             </div>
           )}
 
-          {notice && (
-            <p className="text-xs text-amber-400 text-center">{notice}</p>
-          )}
+          {error && <p className="text-xs text-red-400 text-center">{error}</p>}
         </div>
       </div>
     </div>
