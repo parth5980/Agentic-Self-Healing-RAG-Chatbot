@@ -59,6 +59,15 @@ def load_and_split(source_type: str, source: str, thread_id: str, original_filen
         chunk.metadata["thread_id"] = thread_id
         chunk.metadata["source_type"] = source_type
         chunk.metadata["source_id"] = source_id
+    
+        if source_type == "youtube":
+            chunk.metadata["youtube_url"] = source
+
+        if source_type == "url":
+            chunk.metadata["original_url"] = source
+
+        if pdf_path:
+            chunk.metadata["pdf_path"] = pdf_path
 
         if pdf_path:
             chunk.metadata["pdf_path"] = pdf_path

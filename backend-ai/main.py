@@ -184,8 +184,12 @@ def list_documents(thread_id: str):
 
             if source_type == "pdf" and pdf_path:
                 display_name = pdf_path.split("/")[-1]
-            elif source_type in ("url", "youtube"):
-                display_name = r.metadata.get("source", f"{source_type} content")
+            elif source_type == "youtube":
+                display_name = r.metadata.get("youtube_url", "YouTube Video")
+            
+            elif source_type == "url":
+                display_name = r.metadata.get("original_url", "Website")
+                
             else:
                 display_name = "Uploaded text"
 
