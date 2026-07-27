@@ -69,6 +69,15 @@ export default function ChatWindow({ threadId, threadTitle, onMessageSent }) {
     });
   };
 
+  const refreshSourcesCount = async () => {
+    try {
+      const { data } = await chatService.getThreadSources(threadId);
+      setSourcesCount(data.length);
+    } catch {
+      setSourcesCount(0);
+    }
+  };
+
   return (
     <div className="flex-1 flex flex-col h-screen bg-black">
       <header className="flex items-center justify-between px-6 py-4 border-b border-zinc-900">
@@ -77,7 +86,8 @@ export default function ChatWindow({ threadId, threadTitle, onMessageSent }) {
           <p className="text-xs text-gray-500">Research synthesis</p>
         </div>
         <button
-          onClick={() => setShowSourcesList(true)}
+          onClick={() => threadId && setShowSourcesList(true)}
+          disabled={!threadId}
           className="flex items-center gap-1.5 rounded-full bg-purple-950/60 border border-purple-800/50 text-purple-300 text-xs font-medium px-3 py-1.5 hover:bg-purple-900/60">
           <Database size={13} /> {sourcesCount} Sources
         </button>
@@ -110,12 +120,12 @@ export default function ChatWindow({ threadId, threadTitle, onMessageSent }) {
         {error && <p className="text-sm text-red-400">{error}</p>}
         <div ref={bottomRef} />
       </div>
-
       <form onSubmit={handleSend} className="p-4 border-t border-zinc-900">
         <div className="flex items-center gap-2 rounded-xl bg-zinc-900 border border-zinc-800 px-3 py-2 focus-within:ring-2 focus-within:ring-purple-600">
           <button
             type="button"
-            onClick={() => setShowAddSources(true)}
+            onClick={() => threadId && setShowAddSources(true)}
+            disabled={!threadId}
             className="text-gray-500 hover:text-purple-400 p-1">
             <Paperclip size={18} />
           </button>
@@ -139,7 +149,11 @@ export default function ChatWindow({ threadId, threadTitle, onMessageSent }) {
       </form>
 
       {showAddSources && (
-        <KnowledgeSourcesModal onClose={() => setShowAddSources(false)} />
+        <KnowledgeSourcesModal
+          threadId={threadId}
+          onClose={() => setShowAddSources(false)}
+          onSourceAdded={refreshSourcesCount}
+        />
       )}
       {showSourcesList && (
         <ChatSourcesModal
@@ -149,6 +163,7 @@ export default function ChatWindow({ threadId, threadTitle, onMessageSent }) {
             setShowSourcesList(false);
             setShowAddSources(true);
           }}
+          onSourcesChanged={refreshSourcesCount}
         />
       )}
     </div>

@@ -1,23 +1,34 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 import Sidebar from "../components/dashboard/Sidebar";
 import ChatWindow from "../components/dashboard/ChatWindow";
 import { useThreads } from "../hooks/useThreads";
 import { chatService } from "../api/chatService";
 
 export default function Dashboard() {
-  const { threads, bumpThread, removeThread, refresh } = useThreads();
-  const [activeThreadId, setActiveThreadId] = useState(null);
+  const { threads,loading, bumpThread, removeThread, refresh } = useThreads();
+   const { threadId: activeThreadId } = useParams();
+   const navigate = useNavigate();
 
-  const handleNewChat = () => {
-    setActiveThreadId(crypto.randomUUID()); 
-  };
+  useEffect(() => {
+    if (activeThreadId || loading) return;
+    if (threads.length > 0) {
+      navigate(`/chat/${threads[0].thread_id}`, { replace: true });
+    } else {
+      navigate(`/chat/${crypto.randomUUID()}`, { replace: true });
+    }
+  }, [activeThreadId, loading, threads, navigate]);
+
+  const handleNewChat = () => navigate(`/chat/${crypto.randomUUID()}`);
+  const handleSelectThread = (threadId) => navigate(`/chat/${threadId}`);
+
 
   const handleDeleteThread = async (threadId) => {
     if (!confirm("Delete this chat? This can't be undone.")) return;
     try {
       await chatService.deleteThread(threadId);
       removeThread(threadId);
-      if (threadId === activeThreadId) setActiveThreadId(null);
+      if (threadId === activeThreadId) navigate("/", { replace: true });
     } catch (err) {
       console.error("Failed to delete thread", err);
     }
@@ -35,7 +46,7 @@ export default function Dashboard() {
       <Sidebar
         threads={threads}
         activeThreadId={activeThreadId}
-        onSelectThread={setActiveThreadId}
+        onSelectThread={handleSelectThread}
         onNewChat={handleNewChat}
         onDeleteThread={handleDeleteThread}
       />

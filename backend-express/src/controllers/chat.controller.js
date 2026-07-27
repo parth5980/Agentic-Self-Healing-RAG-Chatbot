@@ -3,6 +3,9 @@ import Source from "../models/source.model.js";
 import {
   streamAIResponse,
   ingestSource,
+  listSources,
+  deleteSource,
+  deleteAllSources,
 } from "../services/aiClient.service.js";
 
 // GET /api/chat/thread — every thread that belongs to the logged-in user
@@ -53,6 +56,10 @@ export async function deleteThread(req, res) {
       return res.status(404).json({ error: "Thread not found" });
     }
 
+    await deleteAllSources({ threadId }).catch((err) =>
+      console.log("Failed to clean up sources:", err),
+    );
+
     res.status(200).json({ success: "Thread deleted successfully" });
   } catch (err) {
     console.log(err);
@@ -61,57 +68,57 @@ export async function deleteThread(req, res) {
 }
 
 // POST /api/chat/chat
-// export async function sendMessage(req, res) {
-//   const { threadId, message } = req.body;
+/* export async function sendMessage(req, res) {
+  const { threadId, message } = req.body;
 
-//   if (!threadId || !message) {
-//     return res.status(400).json({ error: "missing required fields" });
-//   }
+  if (!threadId || !message) {
+    return res.status(400).json({ error: "missing required fields" });
+  }
 
-//   try {
-//     let thread = await Thread.findOne({ thread_id: threadId });
-//     let chatHistory = [];
+  try {
+    let thread = await Thread.findOne({ thread_id: threadId });
+    let chatHistory = [];
 
-//     if (!thread) {
-//       thread = new Thread({
-//         thread_id: threadId,
-//         author: req.user.id,
-//         title: message.slice(0, 60),
-//         messages: [],
-//       });
-//     } else if (thread.author?.toString() !== req.user.id) {
-//       // Someone is trying to post into a thread they don't own
-//       return res
-//         .status(403)
-//         .json({ error: "You don't have access to this thread" });
-//     } else {
-//       // Snapshot the history BEFORE adding the current turn — backend-ai
-//       // receives the current question separately as `message`, so it
-//       // shouldn't also be the last item in chat_history.
-//       chatHistory = thread.messages.map(({ role, content }) => ({
-//         role,
-//         content,
-//       }));
-//     }
+    if (!thread) {
+      thread = new Thread({
+        thread_id: threadId,
+        author: req.user.id,
+        title: message.slice(0, 60),
+        messages: [],
+      });
+    } else if (thread.author?.toString() !== req.user.id) {
+      // Someone is trying to post into a thread they don't own
+      return res
+        .status(403)
+        .json({ error: "You don't have access to this thread" });
+    } else {
+      // Snapshot the history BEFORE adding the current turn — backend-ai
+      // receives the current question separately as `message`, so it
+      // shouldn't also be the last item in chat_history.
+      chatHistory = thread.messages.map(({ role, content }) => ({
+        role,
+        content,
+      }));
+    }
 
-//     thread.messages.push({ role: "user", content: message });
+    thread.messages.push({ role: "user", content: message });
 
-//     const assistantReply = await getAIResponse({
-//       message,
-//       threadId,
-//       chatHistory,
-//     });
+    const assistantReply = await getAIResponse({
+      message,
+      threadId,
+      chatHistory,
+    });
 
-//     thread.messages.push({ role: "assistant", content: assistantReply });
-//     thread.updatedAt = new Date();
+    thread.messages.push({ role: "assistant", content: assistantReply });
+    thread.updatedAt = new Date();
 
-//     await thread.save();
-//     res.json({ reply: assistantReply });
-//   } catch (err) {
-//     console.log(err);
-//     res.status(500).json({ error: "something went wrong" });
-//   }
-// }
+    await thread.save();
+    res.json({ reply: assistantReply });
+  } catch (err) {
+    console.log(err);
+    res.status(500).json({ error: "something went wrong" });
+  }
+} */
 
 // POST /api/chat/chat — now streams Server-Sent Events instead of one JSON blob
 export async function sendMessage(req, res) {
@@ -134,7 +141,9 @@ export async function sendMessage(req, res) {
   // If the browser tab closes/navigates away mid-answer, stop paying for
   // tokens/compute on a request nobody's listening to anymore.
   const controller = new AbortController();
-  req.on("close", () => controller.abort());
+  res.on("close", () => {
+    if (!res.writableEnded) controller.abort(); // only a real early disconnect, not a normal finish
+  });
 
   try {
     let thread = await Thread.findOne({ thread_id: threadId });
@@ -190,6 +199,7 @@ export async function ingest(req, res) {
   const { sourceType, source, threadId } = req.body;
 
   if (!threadId) {
+    console.log(threadId, sourceType, source);
     return res.status(400).json({ error: "threadId is required" });
   }
 
@@ -219,6 +229,15 @@ export async function ingest(req, res) {
         .json({ error: "You don't have access to this thread" });
     }
 
+    if (!existingThread) {
+      existingThread = await Thread.create({
+        thread_id: threadId,
+        author: req.user.id,
+        title: "New Chat",
+        messages: [],
+      });
+    }
+
     const result = await ingestSource({
       sourceType,
       source,
@@ -232,7 +251,7 @@ export async function ingest(req, res) {
       return res.status(422).json({ error: result.message });
     }
 
-    res.json(result);
+    res.json(result); // { success, message, source_id }
   } catch (err) {
     console.log(err);
     res.status(500).json({ error: "Failed to ingest source" });
@@ -249,10 +268,48 @@ export async function getThreadSources(req, res) {
         .status(403)
         .json({ error: "You don't have access to this thread" });
     }
-    const sources = await Source.find({ threadId }).sort({ createdAt: -1 });
-    res.json(sources); 
+    const result = await listSources({ threadId });
+    res.json(result.documents); // [{source_id, source_type, display_name}] || []-safe
   } catch (err) {
     console.log(err);
     res.status(500).json({ error: "Failed to fetch sources" });
+  }
+}
+
+// DELETE /api/chat/thread/:threadId/sources/:sourceId
+export async function deleteThreadSource(req, res) {
+  const { threadId, sourceId } = req.params;
+  try {
+    const thread = await Thread.findOne({ thread_id: threadId });
+    if (thread && thread.author?.toString() !== req.user.id) {
+      return res
+        .status(403)
+        .json({ error: "You don't have access to this thread" });
+    }
+    const result = await deleteSource({ threadId, sourceId });
+    if (!result.success) return res.status(404).json({ error: result.message });
+    res.json({ success: true });
+  } catch (err) {
+    console.log(err);
+    res.status(500).json({ error: "Failed to delete source" });
+  }
+}
+
+// DELETE /api/chat/thread/:threadId/sources
+export async function deleteAllThreadSources(req, res) {
+  const { threadId } = req.params;
+  try {
+    const thread = await Thread.findOne({ thread_id: threadId });
+    if (thread && thread.author?.toString() !== req.user.id) {
+      return res
+        .status(403)
+        .json({ error: "You don't have access to this thread" });
+    }
+    const result = await deleteAllSources({ threadId });
+    if (!result.success) return res.status(404).json({ error: result.message });
+    res.json({ success: true });
+  } catch (err) {
+    console.log(err);
+    res.status(500).json({ error: "Failed to delete sources" });
   }
 }
