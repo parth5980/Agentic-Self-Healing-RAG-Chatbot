@@ -3,6 +3,9 @@ import Source from "../models/source.model.js";
 import {
   streamAIResponse,
   ingestSource,
+  listSources,
+  deleteSource,
+  deleteAllSources,
 } from "../services/aiClient.service.js";
 
 // GET /api/chat/thread — every thread that belongs to the logged-in user
@@ -52,6 +55,10 @@ export async function deleteThread(req, res) {
     if (!deletedThread) {
       return res.status(404).json({ error: "Thread not found" });
     }
+
+    await deleteAllSources({ threadId }).catch((err) =>
+      console.log("Failed to clean up sources:", err),
+    );
 
     res.status(200).json({ success: "Thread deleted successfully" });
   } catch (err) {
@@ -219,6 +226,15 @@ export async function ingest(req, res) {
         .json({ error: "You don't have access to this thread" });
     }
 
+    if (!existingThread) {
+      existingThread = await Thread.create({
+        thread_id: threadId,
+        author: req.user.id,
+        title: "New Chat",
+        messages: [],
+      });
+    }
+
     const result = await ingestSource({
       sourceType,
       source,
@@ -232,7 +248,7 @@ export async function ingest(req, res) {
       return res.status(422).json({ error: result.message });
     }
 
-    res.json(result);
+    res.json(result); // { success, message, source_id }
   } catch (err) {
     console.log(err);
     res.status(500).json({ error: "Failed to ingest source" });
@@ -249,10 +265,48 @@ export async function getThreadSources(req, res) {
         .status(403)
         .json({ error: "You don't have access to this thread" });
     }
-    const sources = await Source.find({ threadId }).sort({ createdAt: -1 });
-    res.json(sources); 
+    const result = await listSources({ threadId });
+    res.json(result.documents); // [{source_id, source_type, display_name}] || []-safe
   } catch (err) {
     console.log(err);
     res.status(500).json({ error: "Failed to fetch sources" });
+  }
+}
+
+// DELETE /api/chat/thread/:threadId/sources/:sourceId
+export async function deleteThreadSource(req, res) {
+  const { threadId, sourceId } = req.params;
+  try {
+    const thread = await Thread.findOne({ thread_id: threadId });
+    if (thread && thread.author?.toString() !== req.user.id) {
+      return res
+        .status(403)
+        .json({ error: "You don't have access to this thread" });
+    }
+    const result = await deleteSource({ threadId, sourceId });
+    if (!result.success) return res.status(404).json({ error: result.message });
+    res.json({ success: true });
+  } catch (err) {
+    console.log(err);
+    res.status(500).json({ error: "Failed to delete source" });
+  }
+}
+
+// DELETE /api/chat/thread/:threadId/sources
+export async function deleteAllThreadSources(req, res) {
+  const { threadId } = req.params;
+  try {
+    const thread = await Thread.findOne({ thread_id: threadId });
+    if (thread && thread.author?.toString() !== req.user.id) {
+      return res
+        .status(403)
+        .json({ error: "You don't have access to this thread" });
+    }
+    const result = await deleteAllSources({ threadId });
+    if (!result.success) return res.status(404).json({ error: result.message });
+    res.json({ success: true });
+  } catch (err) {
+    console.log(err);
+    res.status(500).json({ error: "Failed to delete sources" });
   }
 }

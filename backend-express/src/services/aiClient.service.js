@@ -204,3 +204,46 @@ export async function ingestSource({ sourceType, source, file, threadId }) {
 
   return response.json(); // {success, message}
 }
+
+export async function listSources({ threadId }) {
+  const url = new URL(`${config.AI_BACKEND_URL}/list-documents`);
+  url.searchParams.set("thread_id", threadId);
+
+  let response;
+  try {
+    response = await fetch(url);
+  } catch (err) {
+    throw new Error(`Could not reach AI backend: ${err.message}`);
+  }
+  if (!response.ok) throw new Error(`AI backend responded with status ${response.status}`);
+  return response.json(); // { success, documents: [{source_id, source_type, display_name}] }
+}
+
+export async function deleteSource({ threadId, sourceId }) {
+  const url = new URL(`${config.AI_BACKEND_URL}/delete-source`);
+  url.searchParams.set("thread_id", threadId);
+  url.searchParams.set("source_id", sourceId);
+
+  let response;
+  try {
+    response = await fetch(url, { method: "DELETE" });
+  } catch (err) {
+    throw new Error(`Could not reach AI backend: ${err.message}`);
+  }
+  if (!response.ok) throw new Error(`AI backend responded with status ${response.status}`);
+  return response.json(); // { success, message }
+}
+
+export async function deleteAllSources({ threadId }) {
+  const url = new URL(`${config.AI_BACKEND_URL}/delete-all-sources`);
+  url.searchParams.set("thread_id", threadId);
+
+  let response;
+  try {
+    response = await fetch(url, { method: "DELETE" });
+  } catch (err) {
+    throw new Error(`Could not reach AI backend: ${err.message}`);
+  }
+  if (!response.ok) throw new Error(`AI backend responded with status ${response.status}`);
+  return response.json();
+}
