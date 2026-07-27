@@ -16,7 +16,7 @@ export const chatService = {
     return api.post("/chat/ingest", formData);
   },
   ingestUrl: (threadId, source) =>
-    api.post("/chat/ingest", { threadId, sourceType: "url", source }),
+    api.post("/chat/ingest", { threadId : threadId, sourceType: "url", source }),
   ingestYoutube: (threadId, source) =>
-    api.post("/chat/ingest", { threadId, sourceType: "youtube", source }),
+    api.post("/chat/ingest", { threadId : threadId, sourceType: "youtube", source }),
 };

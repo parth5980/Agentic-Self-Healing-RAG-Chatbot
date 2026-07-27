@@ -1,5 +1,7 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { authFetch } from "../api/streamFetch";
+
+const TYPE_SPEED_MS = 12; // ms per character — tune to taste
 
 export function useChatStream() {
   const [statuses, setStatuses] = useState([]);
@@ -7,6 +9,16 @@ export function useChatStream() {
   const [isStreaming, setIsStreaming] = useState(false);
   const [error, setError] = useState(null);
   const abortRef = useRef(null);
+  const typeTimerRef = useRef(null);
+
+  const stopTyping = () => {
+    if (typeTimerRef.current) {
+      clearInterval(typeTimerRef.current);
+      typeTimerRef.current = null;
+    }
+  };
+
+  useEffect(() => () => stopTyping(), []);
 
   const sendMessage = useCallback(
     async (threadId, message, { onDone } = {}) => {
@@ -14,9 +26,17 @@ export function useChatStream() {
       setStreamedReply("");
       setError(null);
       setIsStreaming(true);
+      stopTyping();
 
       const controller = new AbortController();
       abortRef.current = controller;
+
+      const finishUp = (finalContent) => {
+        setIsStreaming(false);
+        setStreamedReply("");
+        setStatuses([]);
+        onDone?.(finalContent);
+      };
 
       try {
         const res = await authFetch("/chat/chat", {
@@ -33,8 +53,9 @@ export function useChatStream() {
         const decoder = new TextDecoder();
         let buffer = "";
         let finalContent = "";
+        let doneReceived = false;
 
-        while (true) {
+        outer: while (true) {
           const { done, value } = await reader.read();
           if (done) break;
 
@@ -47,28 +68,45 @@ export function useChatStream() {
             if (!line.startsWith("data:")) continue;
             const payload = JSON.parse(line.slice(5).trim());
 
-            if (payload.type === "status")
+            if (payload.type === "status") {
               setStatuses((prev) => [...prev, payload.message]);
-            else if (payload.type === "answer") {
+            } else if (payload.type === "answer") {
               finalContent = payload.content;
-              setStreamedReply(payload.content);
-            } else if (payload.type === "error")
+              let i = 0;
+              stopTyping();
+              typeTimerRef.current = setInterval(() => {
+                i++;
+                setStreamedReply(finalContent.slice(0, i));
+                if (i >= finalContent.length) {
+                  stopTyping();
+                  if (doneReceived) finishUp(finalContent);
+                }
+              }, TYPE_SPEED_MS);
+            } else if (payload.type === "error") {
               throw new Error(payload.message);
-            else if (payload.type === "done") onDone?.(finalContent);
+            } else if (payload.type === "done") {
+              doneReceived = true;
+              if (!typeTimerRef.current) finishUp(finalContent); // typing already caught up (or was never started)
+              break outer;
+            }
           }
         }
       } catch (err) {
+        stopTyping();
         if (err.name !== "AbortError")
           setError(err.message || "Something went wrong");
-      } finally {
         setIsStreaming(false);
+      } finally {
         abortRef.current = null;
       }
     },
     [],
   );
 
-  const cancel = useCallback(() => abortRef.current?.abort(), []);
+  const cancel = useCallback(() => {
+    stopTyping();
+    abortRef.current?.abort();
+  }, []);
 
   return { statuses, streamedReply, isStreaming, error, sendMessage, cancel };
 }

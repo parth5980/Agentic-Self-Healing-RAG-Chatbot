@@ -41,6 +41,17 @@ chatRouter.post("/ingest", upload.single("file"), chatController.ingest);
  */
 chatRouter.get("/thread/:threadId/sources", chatController.getThreadSources);
 
+/**
+ * DELETE /api/chat/thread/:threadId/sources/:sourceId
+ */
+chatRouter.delete("/thread/:threadId/sources/:sourceId", chatController.deleteThreadSource);
+
+/**
+ * DELETE /api/chat/thread/:threadId/sources
+ */
+chatRouter.delete("/thread/:threadId/sources", chatController.deleteAllThreadSources);
+
+
 export default chatRouter;
 
 // chatRouter.post("/test", async(req, res) => {

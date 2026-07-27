@@ -141,7 +141,9 @@ export async function sendMessage(req, res) {
   // If the browser tab closes/navigates away mid-answer, stop paying for
   // tokens/compute on a request nobody's listening to anymore.
   const controller = new AbortController();
-  req.on("close", () => controller.abort());
+  res.on("close", () => {
+    if (!res.writableEnded) controller.abort(); // only a real early disconnect, not a normal finish
+  });
 
   try {
     let thread = await Thread.findOne({ thread_id: threadId });
@@ -197,6 +199,7 @@ export async function ingest(req, res) {
   const { sourceType, source, threadId } = req.body;
 
   if (!threadId) {
+    console.log(threadId, sourceType, source);
     return res.status(400).json({ error: "threadId is required" });
   }
 

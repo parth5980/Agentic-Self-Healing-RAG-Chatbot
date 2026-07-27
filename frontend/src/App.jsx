@@ -19,6 +19,7 @@ export default function App() {
           </Route>
           <Route element={<ProtectedRoute />}>
             <Route path="/" element={<Dashboard />} />
+            <Route path="/chat/:threadId" element={<Dashboard />} />
             <Route path="/settings" element={<Settings />} />
           </Route>
         </Routes>

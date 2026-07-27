@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
-import { X, FileText, Link2, Youtube, Trash2, Loader2 } from "lucide-react";
+import { X, FileText, Link2, Trash2, Loader2, MonitorPlay } from "lucide-react";
 import { chatService } from "../../api/chatService";
 
-const ICONS = { pdf: FileText, url: Link2, youtube: Youtube, text: FileText };
+const ICONS = { pdf: FileText, url: Link2, youtube: MonitorPlay, text: FileText };
 const LABELS = {
   pdf: "FILES",
   url: "URLS",
