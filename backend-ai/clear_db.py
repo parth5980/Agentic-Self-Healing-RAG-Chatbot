@@ -1,12 +1,10 @@
 import os
 import dotenv
 
-# Paste your actual keys directly here, just for this one-time script
-os.environ["MISTRAL_API_KEY"] =  os.getenv("MISTRAL_API_KEY")
+env_path = Path(__file__).resolve().parent.parent / ".env"
+load_dotenv(dotenv_path=env_path)
+
 os.environ["PINECONE_API_KEY"] = os.getenv("PINECONE_API_KEY")
-os.environ["LANGSMITH_API_KEY"] =  os.getenv("LANGSMITH_API_KEY")
-os.environ["TAVILY_API_KEY"] = os.getenv("TAVILY_API_KEY")
-os.environ["JINA_API_KEY"] = os.getenv("JINA_API_KEY")
 
 from app.config import index
 

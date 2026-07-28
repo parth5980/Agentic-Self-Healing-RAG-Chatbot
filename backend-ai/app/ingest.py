@@ -7,11 +7,27 @@ from langchain_community.document_loaders import (
     TextLoader,
     Docx2txtLoader
 )
-from app.config import vectorstore, supabase, SUPABASE_BUCKET
+from app.config import vectorstore, supabase, SUPABASE_BUCKET,index
 import uuid
 import os
 import requests
 
+def delete_existing_source(thread_id: str, filename: str):
+    """If this filename was already ingested in this thread, remove its old vectors first"""
+    results = vectorstore.similarity_search(
+        "check",
+        k=1000,
+        filter={"thread_id": thread_id}
+    )
+
+    source_ids_to_delete = set()
+    for r in results:
+        existing_path = r.metadata.get("pdf_path", "")
+        if existing_path.split("/")[-1] == filename:
+            source_ids_to_delete.add(r.metadata.get("source_id"))
+
+    for sid in source_ids_to_delete:
+        index.delete(filter={"thread_id": thread_id, "source_id": sid})
 
 def upload_file_to_supabase(filename: str, thread_id: str, display_name: str = None, content_type: str = "application/octet-stream") -> str:
     """Upload the original file to Supabase Storage, return its storage path"""
@@ -89,15 +105,14 @@ def load_and_split(source_type: str, source: str, thread_id: str, original_filen
         if pdf_path:
             chunk.metadata["pdf_path"] = pdf_path
 
-        if pdf_path:
-            chunk.metadata["pdf_path"] = pdf_path
-
     return chunks, source_id
-
 
 def ingest_document(source_type: str, source: str, thread_id: str, original_filename: str = None) -> dict:
     """Main ingestion function called by FastAPI."""
     try:
+        if original_filename and source_type in ("pdf", "txt", "docx"):
+            delete_existing_source(thread_id, original_filename)
+
         chunks, source_id = load_and_split(source_type, source, thread_id, original_filename)
         vectorstore.add_documents(chunks)
         return {

@@ -201,10 +201,12 @@ def list_documents(thread_id: str):
     return {"success": True, "documents": documents}
 
 
-
 @app.delete("/delete-source")
 def delete_source(thread_id: str, source_id: str):
     """Delete ONE specific source (pdf, url, youtube, text) by its source_id"""
+
+    thread_id = thread_id.strip()
+    source_id = source_id.strip()
 
     results = vectorstore.similarity_search(
         "check",
@@ -233,6 +235,8 @@ def delete_source(thread_id: str, source_id: str):
 def delete_all_sources(thread_id: str):
     """Delete ALL sources uploaded in a given conversation thread"""
 
+    thread_id = thread_id.strip()
+
     results = vectorstore.similarity_search(
         "list",
         k=1000,
@@ -257,7 +261,6 @@ def delete_all_sources(thread_id: str):
     return {"success": True, "message": f"Deleted all sources in thread: {thread_id}"}
 
     
-
 @app.get("/health")
 def health():
     return {"status": "ok"}

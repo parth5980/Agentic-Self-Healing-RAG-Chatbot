@@ -37,16 +37,16 @@ def query_analyzer(state: AgentState) -> AgentState:
     history = format_chat_history(state["chat_history"])
 
     prompt = ChatPromptTemplate.from_messages([
-        ("system", """You are a query router for a RAG chatbot that has access to content the user has ingested — uploaded PDFs, ingested web pages, and ingested YouTube video transcripts.
+        ("system", """You are a query router for a RAG chatbot that has access to content the user has ingested — uploaded PDF, DOCX, and TXT documents, ingested web pages, and ingested YouTube video transcripts.
 
 Classify the user's query into exactly one category:
 
-- 'summary': the query asks for a broad, whole-document summary or overview of an uploaded PDF specifically. This is ONLY for PDF-wide summaries, not specific facts or sections, and NOT for YouTube videos or URLs.
+-- 'summary': the query asks for a broad, whole-document summary or overview of an uploaded document (PDF, DOCX, or TXT). This is ONLY for whole-document summaries, not specific facts or sections, and NOT for YouTube videos or URLs.
 - 'rag': the query asks about specific content, facts, sections, or details that would come from content the user has ingested (PDF, web page, or YouTube transcript) — including summaries of a YouTube video or URL (not PDF), and follow-up questions continuing a document-based conversation.
 - 'chat': the query is general knowledge, a definition, small talk, or a question about the assistant itself (who are you, what can you do).
 - 'web': the query explicitly needs current, real-time, or recent information (today's news, current prices, latest events) that a static document or general knowledge cannot answer.
 
-Examples for 'summary' (PDF-wide only):
+Examples for 'summary' (whole uploaded document):
 "summarize my pdf" -> summary
 "what does the pdf I uploaded contain" -> summary
 "give me an overview of the document" -> summary
@@ -62,8 +62,25 @@ Examples for 'summary' (PDF-wide only):
 "Summarize the deep learning document" -> summary
 "Summarize my deep learning.pdf" -> summary
 "Give overview of deep learning pdf" -> summary
+"give me summary of txt file" -> summary
+"give me summary of the txt document" -> summary
+"summarize notes.txt" -> summary
+"summarize resume.docx" -> summary
+"give overview of report.docx" -> summary
+"summarize the docx file" -> summary
+"summarize the text file" -> summary
+"summarize my uploaded txt" -> summary
+"Summarize the PDF file" -> summary
+"Summarize the TXT file" -> summary
+"Summarize the DOCX file" -> summary
+"Give me summary of the second file" -> summary
+"Summarize the uploaded TXT" -> summary
+"Summarize the uploaded DOCX" -> summary
+"Give me overview of the text document" -> summary
+"Give me overview of the Word document" -> summary
+"summarize my uploaded docx" -> summary
 
-Examples for 'rag' (specific facts, or non-PDF summaries):
+Examples for 'rag' (specific questions about uploaded PDF, DOCX, TXT documents, web pages, or YouTube transcripts)::
 "Give summary of the youtube video I shared" -> rag
 "summarize the article from the link" -> rag
 "summarize the url I sent" -> rag
@@ -89,7 +106,7 @@ Examples for 'web':
 "what's the stock price of X today" -> web
 
 Rule:
-- If the user requests a summary or overview of an uploaded document (even if they mention the document name, such as "deep learning pdf", "CNN report", or "LangChain guide"), classify it as 'summary'.
+- If the user requests a summary or overview of an uploaded PDF, DOCX, or TXT document (even if they mention the filename), classify it as 'summary'. (even if they mention the document name, such as "deep learning pdf", "CNN report", or "LangChain guide"), classify it as 'summary'.
 - Choose 'rag' only when the user asks about a specific section, fact, concept, or detail within the document.
 - If the query could reasonably be about content the user has already ingested and there is any ambiguity between 'rag', 'chat', or 'web', choose 'rag'.
 
@@ -669,7 +686,7 @@ def summary_node(state: AgentState) -> AgentState:
 
         matches = []
         for path, name in zip(all_paths, filenames):
-            name_words = name.replace(".pdf", "").replace("_", " ").replace("-", " ").lower().split()
+            name_words = os.path.splitext(name)[0].replace("_", " ").replace("-", " ").lower().split()
             keywords = [w for w in name_words if w not in common_words and len(w) > 2]
             if any(word in question_lower for word in keywords):
                 matches.append(path)
