@@ -170,11 +170,12 @@ export async function streamAIResponse({
  * @param {{buffer: Buffer, originalname: string, mimetype: string}} [params.file] Required for pdf — this is req.file from multer's memoryStorage
  */
 export async function ingestSource({ sourceType, source, file, threadId }) {
+  const FILE_SOURCE_TYPES = ["pdf", "txt", "docx"];
   const form = new FormData();
   form.append("source_type", sourceType);
   form.append("thread_id", threadId);
 
-  if (sourceType === "pdf" && file) {
+  if (FILE_SOURCE_TYPES.includes(sourceType) && file) {
     form.append(
       "file",
       new Blob([file.buffer], { type: file.mimetype }),
@@ -215,7 +216,8 @@ export async function listSources({ threadId }) {
   } catch (err) {
     throw new Error(`Could not reach AI backend: ${err.message}`);
   }
-  if (!response.ok) throw new Error(`AI backend responded with status ${response.status}`);
+  if (!response.ok)
+    throw new Error(`AI backend responded with status ${response.status}`);
   return response.json(); // { success, documents: [{source_id, source_type, display_name}] }
 }
 
@@ -230,7 +232,8 @@ export async function deleteSource({ threadId, sourceId }) {
   } catch (err) {
     throw new Error(`Could not reach AI backend: ${err.message}`);
   }
-  if (!response.ok) throw new Error(`AI backend responded with status ${response.status}`);
+  if (!response.ok)
+    throw new Error(`AI backend responded with status ${response.status}`);
   return response.json(); // { success, message }
 }
 
@@ -244,6 +247,7 @@ export async function deleteAllSources({ threadId }) {
   } catch (err) {
     throw new Error(`Could not reach AI backend: ${err.message}`);
   }
-  if (!response.ok) throw new Error(`AI backend responded with status ${response.status}`);
+  if (!response.ok)
+    throw new Error(`AI backend responded with status ${response.status}`);
   return response.json();
 }
