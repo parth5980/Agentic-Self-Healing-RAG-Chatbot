@@ -189,7 +189,8 @@ export async function sendMessage(req, res) {
   }
 }
 
-const VALID_SOURCE_TYPES = ["pdf", "url", "youtube", "text"];
+const VALID_SOURCE_TYPES = ["pdf", "txt", "docx", "url", "youtube", "text"];
+const FILE_SOURCE_TYPES = ["pdf", "txt", "docx"];
 // POST /api/chat/ingest
 // multipart/form-data for sourceType "pdf" (with a file field), or plain
 // JSON for "url" / "youtube" / "text" (with a source string). The
@@ -209,13 +210,13 @@ export async function ingest(req, res) {
     });
   }
 
-  if (sourceType === "pdf" && !req.file) {
+  if (FILE_SOURCE_TYPES.includes(sourceType) && !req.file) {
     return res
       .status(400)
-      .json({ error: "file is required for sourceType 'pdf'" });
+      .json({ error: `file is required for sourceType '${sourceType}'` });
   }
 
-  if (sourceType !== "pdf" && !source) {
+  if (!FILE_SOURCE_TYPES.includes(sourceType) && !source) {
     return res
       .status(400)
       .json({ error: "source is required for this sourceType" });

@@ -15,7 +15,7 @@ export default function MessageBubble({ role, content }) {
 
   return (
     <div className="flex justify-start">
-      <div className="max-w-2xl rounded-2xl rounded-tl-sm bg-zinc-900 border border-zinc-800 text-gray-100 px-4 py-3 prose prose-invert prose-sm max-w-none prose-pre:bg-black prose-pre:border prose-pre:border-zinc-800">
+      <div className="max-w-2xl rounded-2xl rounded-tl-sm bg-zinc-900 border border-zinc-800 text-gray-100 px-4 py-3 prose prose-invert prose-sm prose-pre:bg-black prose-pre:border prose-pre:border-zinc-800">
         <ReactMarkdown
           remarkPlugins={[remarkGfm]}
           rehypePlugins={[rehypeHighlight]}>

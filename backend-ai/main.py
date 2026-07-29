@@ -166,7 +166,7 @@ def list_documents(thread_id: str):
 
     results = vectorstore.similarity_search(
         "list",
-        k=50,
+        k=200,
         filter={"thread_id": thread_id}
     )
 
@@ -210,7 +210,7 @@ def delete_source(thread_id: str, source_id: str):
 
     results = vectorstore.similarity_search(
         "check",
-        k=1000,
+        k=200,
         filter={"thread_id": thread_id, "source_id": source_id}
     )
 
