@@ -3,7 +3,7 @@ import { X, Upload, Link2, MonitorPlay, Loader2 } from "lucide-react";
 import { chatService } from "../../api/chatService";
 
 const TABS = [
-  { id: "file", label: "Upload File", hint: "PDF only", icon: Upload },
+  { id: "file", label: "Upload File", hint: "PDF, DOCX, TXT", icon: Upload },
   { id: "url", label: "Connect URL", hint: "Web Scraping", icon: Link2 },
   {
     id: "youtube",
@@ -123,10 +123,10 @@ export default function KnowledgeSourcesModal({
               <span className="text-sm text-purple-300 font-medium">
                 {loading ? "Uploading..." : "Choose a file to upload"}
               </span>
-              <span className="text-xs text-gray-500">PDF only, for now</span>
+              <span className="text-xs text-gray-500">PDF, DOCX, or TXT</span>
               <input
                 type="file"
-                accept=".pdf"
+                accept=".pdf,.docx,.txt"
                 className="hidden"
                 onChange={handleFileChange}
                 disabled={loading}
