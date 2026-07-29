@@ -1,8 +1,22 @@
 import { useEffect, useState } from "react";
-import { X, FileText, Link2, Trash2, Loader2, MonitorPlay } from "lucide-react";
+import {
+  X,
+  FileText,
+  Link2,
+  Trash2,
+  Loader2,
+  MonitorPlay,
+  Plus,
+  Database,
+} from "lucide-react";
 import { chatService } from "../../api/chatService";
 
-const ICONS = { pdf: FileText, url: Link2, youtube: MonitorPlay, text: FileText };
+const ICONS = {
+  pdf: FileText,
+  url: Link2,
+  youtube: MonitorPlay,
+  text: FileText,
+};
 const LABELS = {
   pdf: "FILES",
   url: "URLS",
@@ -54,36 +68,55 @@ export default function ChatSourcesModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-200"
       onClick={onClose}>
       <div
-        className="w-full max-w-lg rounded-2xl bg-zinc-950 border border-zinc-800 shadow-2xl"
+        className="w-full max-w-lg rounded-3xl bg-zinc-900/90 border border-white/10 shadow-2xl shadow-purple-900/20 overflow-hidden backdrop-blur-xl animate-in zoom-in-95 duration-200"
         onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-start justify-between px-5 py-4 border-b border-zinc-900">
+        <div className="flex items-center justify-between px-6 py-5 border-b border-white/5 bg-white/[0.02]">
           <div>
-            <h2 className="text-white font-bold">Chat Sources</h2>
-            <p className="text-xs text-gray-500 mt-0.5">
-              These sources are only available in this conversation.
+            <h2 className="text-white font-semibold text-lg tracking-tight">
+              Chat Sources
+            </h2>
+            <p className="text-xs text-zinc-400 mt-1 font-medium">
+              These sources ground the answers in this specific conversation.
             </p>
           </div>
-          <button onClick={onClose} className="text-gray-500 hover:text-white">
+          <button
+            onClick={onClose}
+            className="p-2 rounded-full text-zinc-400 hover:text-white hover:bg-white/10 transition-colors">
             <X size={18} />
           </button>
         </div>
 
-        <div className="max-h-96 overflow-y-auto px-5 py-4 space-y-5">
-          {loading && <p className="text-sm text-gray-500">Loading...</p>}
+        <div className="max-h-[60vh] overflow-y-auto px-6 py-5 space-y-6 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:bg-zinc-700 [&::-webkit-scrollbar-track]:bg-transparent">
+          {loading && (
+            <div className="flex flex-col items-center justify-center py-10 gap-3">
+              <Loader2 size={24} className="text-purple-500 animate-spin" />
+              <p className="text-sm text-zinc-500 font-medium">
+                Loading sources...
+              </p>
+            </div>
+          )}
           {!loading && sources.length === 0 && (
-            <p className="text-sm text-gray-500 text-center py-6">
-              No sources yet — add a file, URL, or YouTube link to ground
-              answers in this chat.
-            </p>
+            <div className="text-center py-12 px-4">
+              <div className="w-12 h-12 bg-white/5 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <Database size={20} className="text-zinc-500" />
+              </div>
+              <p className="text-sm text-zinc-400 font-medium leading-relaxed">
+                No sources connected yet. <br /> Add files, websites, or videos
+                to get started.
+              </p>
+            </div>
           )}
           {!loading &&
             Object.entries(grouped).map(([type, items]) => (
-              <div key={type}>
-                <p className="text-xs font-semibold text-purple-400 tracking-wide mb-2">
-                  {LABELS[type] || type.toUpperCase()} · {items.length}
+              <div key={type} className="space-y-3">
+                <p className="text-[11px] font-bold text-purple-400/80 tracking-widest uppercase flex items-center gap-2">
+                  {LABELS[type] || type.toUpperCase()}
+                  <span className="px-1.5 py-0.5 rounded-full bg-purple-500/10 text-purple-400 text-[10px]">
+                    {items.length}
+                  </span>
                 </p>
                 <div className="space-y-2">
                   {items.map((s) => {
@@ -92,21 +125,24 @@ export default function ChatSourcesModal({
                     return (
                       <div
                         key={s.source_id}
-                        className="flex items-center gap-3 rounded-lg bg-zinc-900 border border-zinc-800 px-3 py-2.5">
-                        <span className="rounded-lg bg-purple-950 p-1.5 shrink-0">
-                          <Icon size={14} className="text-purple-400" />
+                        className="group flex items-center gap-3 rounded-2xl bg-white/[0.03] border border-white/5 px-4 py-3 hover:bg-white/[0.06] hover:border-white/10 transition-all">
+                        <span className="rounded-xl bg-purple-500/10 p-2 shrink-0 group-hover:scale-110 transition-transform shadow-inner shadow-white/5">
+                          <Icon size={16} className="text-purple-400" />
                         </span>
-                        <p className="flex-1 min-w-0 text-sm text-white truncate">
+                        <p className="flex-1 min-w-0 text-sm font-medium text-zinc-200 truncate">
                           {s.display_name}
                         </p>
                         <button
                           onClick={() => handleDelete(s.source_id)}
                           disabled={isDeleting}
-                          className="text-gray-500 hover:text-red-400 disabled:opacity-50 shrink-0">
+                          className="p-2 rounded-xl text-zinc-500 hover:text-red-400 hover:bg-red-400/10 disabled:opacity-50 shrink-0 transition-colors">
                           {isDeleting ? (
-                            <Loader2 size={15} className="animate-spin" />
+                            <Loader2
+                              size={16}
+                              className="animate-spin text-red-400"
+                            />
                           ) : (
-                            <Trash2 size={15} />
+                            <Trash2 size={16} />
                           )}
                         </button>
                       </div>
@@ -117,11 +153,12 @@ export default function ChatSourcesModal({
             ))}
         </div>
 
-        <div className="p-4 border-t border-zinc-900">
+        <div className="p-5 border-t border-white/5 bg-black/20">
           <button
             onClick={onAddNew}
-            className="w-full rounded-lg border border-dashed border-purple-800 text-purple-400 text-sm font-medium py-2.5 hover:bg-purple-950/40">
-            + Add New Source
+            className="w-full flex items-center justify-center gap-2 rounded-xl border border-dashed border-purple-500/40 bg-purple-500/5 text-purple-300 text-sm font-semibold py-3 hover:bg-purple-500/15 hover:border-purple-500/60 transition-all active:scale-[0.98]">
+            <Plus size={16} />
+            Add New Source
           </button>
         </div>
       </div>

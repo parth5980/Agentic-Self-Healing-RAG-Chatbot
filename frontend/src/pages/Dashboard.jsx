@@ -6,9 +6,12 @@ import { useThreads } from "../hooks/useThreads";
 import { chatService } from "../api/chatService";
 
 export default function Dashboard() {
-  const { threads,loading, bumpThread, removeThread, refresh } = useThreads();
-   const { threadId: activeThreadId } = useParams();
-   const navigate = useNavigate();
+  const { threads, loading, bumpThread, removeThread, refresh } = useThreads();
+  const { threadId: activeThreadId } = useParams();
+  const navigate = useNavigate();
+
+  // Mobile sidebar state
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   useEffect(() => {
     if (activeThreadId || loading) return;
@@ -22,9 +25,8 @@ export default function Dashboard() {
   const handleNewChat = () => navigate(`/chat/${crypto.randomUUID()}`);
   const handleSelectThread = (threadId) => navigate(`/chat/${threadId}`);
 
-
   const handleDeleteThread = async (threadId) => {
-    if (!confirm("Delete this chat? This can't be undone.")) return;
+    if (!window.confirm("Delete this chat? This can't be undone.")) return;
     try {
       await chatService.deleteThread(threadId);
       removeThread(threadId);
@@ -35,26 +37,29 @@ export default function Dashboard() {
   };
 
   const handleMessageSent = (threadId) => {
-    bumpThread(threadId); // instant client-side reorder
-    refresh(); // reconcile with server (real title, exact updatedAt)
+    bumpThread(threadId);
+    refresh();
   };
 
   const activeThread = threads.find((t) => t.thread_id === activeThreadId);
 
   return (
-    <div className="flex">
+    <div className="flex h-[100dvh] w-full bg-black overflow-hidden font-sans selection:bg-purple-500/30">
       <Sidebar
         threads={threads}
         activeThreadId={activeThreadId}
         onSelectThread={handleSelectThread}
         onNewChat={handleNewChat}
         onDeleteThread={handleDeleteThread}
+        isOpen={isSidebarOpen}
+        setIsOpen={setIsSidebarOpen}
       />
       <ChatWindow
-        key={activeThreadId} // clean remount on thread switch — no state bleeding between threads
+        key={activeThreadId}
         threadId={activeThreadId}
         threadTitle={activeThread?.title}
         onMessageSent={handleMessageSent}
+        openSidebar={() => setIsSidebarOpen(true)}
       />
     </div>
   );
