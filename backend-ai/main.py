@@ -45,6 +45,7 @@ def get_initial_state(question: str, chat_history: list, thread_id: str) -> dict
         "chat_history": chat_history,
         "thread_id": thread_id,
         "query_type": "rag",
+        "needs_uploaded_content": False,
         "rewritten_query": "",
         "all_queries": [],
         "documents": [],
@@ -64,6 +65,8 @@ def get_initial_state(question: str, chat_history: list, thread_id: str) -> dict
 # Node status messages
 NODE_MESSAGES = {
     "query_analyzer": "🔍 Analyzing query...",
+    "content_type_classifier": "📑 Checking if you want a summary or a specific answer...",
+    "general_type_classifier": "🧭 Checking if this needs a web search...",
     "query_rewriter": "✏️ Rewriting query...",
     "multi_query_generator": "🔀 Generating query variations...",
     "retrieve_documents": "📚 Retrieving documents...",
@@ -82,7 +85,6 @@ NODE_MESSAGES = {
     "web_search_node": "🌐 Searching web for latest info...",
     "summary_node": "📄 Summarizing your document..."
 }
-
 
 # SSE generator
 def stream_pipeline(question: str, chat_history: list, thread_id: str):
@@ -239,7 +241,7 @@ def delete_all_sources(thread_id: str):
 
     results = vectorstore.similarity_search(
         "list",
-        k=1000,
+        k=500,
         filter={"thread_id": thread_id}
     )
 
