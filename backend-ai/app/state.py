@@ -7,6 +7,7 @@ class AgentState(TypedDict):
 
     # Input
     query_type: Literal["rag", "chat", "web", "summary"]
+    needs_uploaded_content: bool
     question: str
     chat_history: List[dict]
     thread_id: str

@@ -32,97 +32,138 @@ def format_chat_history(chat_history: List[dict]) -> str:
 
 
 def query_analyzer(state: AgentState) -> AgentState:
-    """Classify query as rag, chat or web"""
+    """Stage 1: decide if this needs uploaded content, or is a general question"""
 
-    history = format_chat_history(state["chat_history"])
+    history = format_chat_history(state["chat_history"][-4:])
 
     prompt = ChatPromptTemplate.from_messages([
-        ("system", """You are a query router for a RAG chatbot that has access to content the user has ingested — uploaded PDF, DOCX, and TXT documents, ingested web pages, and ingested YouTube video transcripts.
+    ("system", """You are a query router. Decide if the user's question needs content they've uploaded (a document — PDF, TXT, or DOCX — a web page, or a YouTube video) — or if it's a general question with no reference to uploaded content.
 
-Classify the user's query into exactly one category:
+Answer 'uploaded' if:
+- The question asks about a specific document, file, video, or link they've shared, regardless of file type (PDF, TXT, DOCX).
+- It's a natural follow-up to an earlier document-based question (using chat history for context).
+- It could reasonably be about something they uploaded, even if not 100% certain.
 
--- 'summary': the query asks for a broad, whole-document summary or overview of an uploaded document (PDF, DOCX, or TXT). This is ONLY for whole-document summaries, not specific facts or sections, and NOT for YouTube videos or URLs.
-- 'rag': the query asks about specific content, facts, sections, or details that would come from content the user has ingested (PDF, web page, or YouTube transcript) — including summaries of a YouTube video or URL (not PDF), and follow-up questions continuing a document-based conversation.
-- 'chat': the query is general knowledge, a definition, small talk, or a question about the assistant itself (who are you, what can you do).
-- 'web': the query explicitly needs current, real-time, or recent information (today's news, current prices, latest events) that a static document or general knowledge cannot answer.
+Answer 'general' if:
+- It's clearly general knowledge, small talk, or about the assistant itself.
+- It clearly needs current/real-time information (news, prices, today's events) with no reference to any uploaded content.
 
-Examples for 'summary' (whole uploaded document):
-"summarize my pdf" -> summary
-"what does the pdf I uploaded contain" -> summary
-"give me an overview of the document" -> summary
-"can you summarize the file I sent" -> summary
-"what is this pdf about" -> summary
-"tell me everything in the pdf" -> summary
-"give me a full summary of my document" -> summary
-"summarize the langchain one pdf" -> summary
-"summarize report1.pdf" -> summary
-"give me a summary of the CNN architectures pdf" -> summary
-"summarize the langchain guide" -> summary
-"Give me summary of deep learning pdf" -> summary
-"Summarize the deep learning document" -> summary
-"Summarize my deep learning.pdf" -> summary
-"Give overview of deep learning pdf" -> summary
-"give me summary of txt file" -> summary
-"give me summary of the txt document" -> summary
-"summarize notes.txt" -> summary
-"summarize resume.docx" -> summary
-"give overview of report.docx" -> summary
-"summarize the docx file" -> summary
-"summarize the text file" -> summary
-"summarize my uploaded txt" -> summary
-"Summarize the PDF file" -> summary
-"Summarize the TXT file" -> summary
-"Summarize the DOCX file" -> summary
-"Give me summary of the second file" -> summary
-"Summarize the uploaded TXT" -> summary
-"Summarize the uploaded DOCX" -> summary
-"Give me overview of the text document" -> summary
-"Give me overview of the Word document" -> summary
-"summarize my uploaded docx" -> summary
+Tie-breaking rule: if chat history shows the user was just discussing an uploaded document/video/link, and the current question is short or ambiguous (e.g. "what about X", "go on", "more detail"), treat it as a follow-up and answer 'uploaded'.
 
-Examples for 'rag' (specific questions about uploaded PDF, DOCX, TXT documents, web pages, or YouTube transcripts)::
-"Give summary of the youtube video I shared" -> rag
-"summarize the article from the link" -> rag
-"summarize the url I sent" -> rag
-"Summarize the introduction section" -> rag
-"What does the contract say about termination?" -> rag
-"What does chapter 3 talk about?" -> rag
-"What about the next part?" (after a document question) -> rag
-"tell me more about that" (following a document-based answer) -> rag
-"what does the video say about X" -> rag
+Examples:
+"summarize my pdf" -> uploaded
+"summarize my notes.txt" -> uploaded
+"what does report.docx say about X" -> uploaded
+"summarize the video I shared" -> uploaded
+"what about the next part" (after a document question) -> uploaded
+"answer my first question from the file" -> uploaded
+"what is photosynthesis" -> general
+"who are you" -> general
+"what's today's weather" -> general
+"what's the latest news on X" -> general
 
-Examples for 'chat':
-"What is photosynthesis?" -> chat
-"Who are you?" -> chat
-"what can you do" -> chat
-"hi, how are you" -> chat
-"explain what a neural network is" (no document reference) -> chat
-
-Examples for 'web':
-"tell me about us and iran war " -> web
-"What's today's weather in Delhi?" -> web
-"What's the latest news on the elections?" -> web
-"who is the current prime minister of India" -> web
-"what's the stock price of X today" -> web
-
-Rule:
-- If the user requests a summary or overview of an uploaded PDF, DOCX, or TXT document (even if they mention the filename), classify it as 'summary'. (even if they mention the document name, such as "deep learning pdf", "CNN report", or "LangChain guide"), classify it as 'summary'.
-- Choose 'rag' only when the user asks about a specific section, fact, concept, or detail within the document.
-- If the query could reasonably be about content the user has already ingested and there is any ambiguity between 'rag', 'chat', or 'web', choose 'rag'.
-
-Respond with ONLY one word: 'summary', 'rag', 'chat' or 'web'. Nothing else."""),
-        ("human", """{history}Current question: {question}""")
-    ])
+Respond with ONLY one word: 'uploaded' or 'general'. Nothing else."""),
+    ("human", """{history}Current question: {question}""")
+])
 
     chain = prompt | llm_small
-    result = chain.invoke({
-        "history": history,
-        "question": state["question"]
-    })
-    query_type = result.content.strip().lower()
+    result = chain.invoke({"history": history, "question": state["question"]})
+    needs_uploaded = result.content.strip().lower() == "uploaded"
 
-    if query_type not in ["summary","rag", "chat", "web"]:
-        query_type = "rag"
+    return {"needs_uploaded_content": needs_uploaded}
+
+def content_type_classifier(state: AgentState) -> AgentState:
+    """Stage 2A: summary or specific-fact question (only runs if uploaded content is needed)"""
+
+    history = format_chat_history(state["chat_history"][-4:])
+
+    prompt = ChatPromptTemplate.from_messages([
+    ("system", """You classify a question about the user's uploaded content (a document — PDF, TXT, or DOCX — a web page, or a YouTube video) into one of two types: SUMMARY or SPECIFIC.
+
+Answer 'summary' ONLY if BOTH of these are true:
+1. The uploaded content in question is a document file (PDF, TXT, or DOCX) — not a YouTube video or URL.
+2. The user wants a broad overview of the whole document — not one detail from it.
+
+Important: naming a specific filename does NOT make this 'specific'. Naming a file only tells you WHICH document to act on — it does not change WHAT KIND of answer they want. "Summarize my cnn pdf" and "summarize report1.docx" are still 'summary' requests, even though a filename is mentioned, because the user still wants a full overview of that named file.
+
+Answer 'specific' if ANY of these are true:
+- The content in question is a YouTube video or a URL (summaries of these are handled as 'specific', not 'summary').
+- The user is asking about one fact, section, number, definition, or detail within the document — regardless of whether a filename is also mentioned.
+- The user is asking to "answer a question from" the document (e.g. a quiz/question-bank file) — this needs specific retrieval, not a summary.
+
+Tie-breaking rule: if you are unsure whether it's a full-document overview or a narrower ask, choose 'specific' — specific retrieval can still surface broad information, but a summary generator cannot answer a narrow factual question well. This tie-break only applies when the TYPE of request is ambiguous, not when a filename is simply mentioned.
+
+Examples of SUMMARY:
+"summarize my pdf" -> summary
+"summarize my notes.txt" -> summary
+"give me an overview of report.docx" -> summary
+"summarize report1.pdf" -> summary
+"give me summary of my cnn pdf" -> summary
+"summarize the cnn architectures document" -> summary
+"what is this document about" -> summary
+"tl;dr of my document" -> summary
+
+Examples of SPECIFIC:
+"summarize the video I shared" -> specific
+"summarize this article/link" -> specific
+"what does the document say about transformers" -> specific
+"answer my first question from the file" -> specific
+"what's the conclusion of the paper" -> specific
+"what does page 3 of my cnn pdf say" -> specific
+"how many layers does resnet have according to my pdf" -> specific
+"explain the second point in report.docx" -> specific
+
+Respond with ONLY one word: 'summary' or 'specific'. Nothing else."""),
+    ("human", """{history}Current question: {question}""")
+])
+    chain = prompt | llm_small
+    result = chain.invoke({"history": history, "question": state["question"]})
+    query_type = "summary" if result.content.strip().lower() == "summary" else "rag"
+
+    return {"query_type": query_type}
+
+
+def general_type_classifier(state: AgentState) -> AgentState:
+    """Stage 2B: chat or web search (only runs if this is a general question)"""
+
+    history = format_chat_history(state["chat_history"][-4:])
+
+    prompt = ChatPromptTemplate.from_messages([
+    ("system", """You classify a general question (one that does NOT reference any uploaded content) into one of two types: WEB or CHAT.
+
+Answer 'web' if the question needs current, live, or recent real-world information that a static knowledge base cannot reliably answer — for example:
+- Today's date, current events, breaking news
+- Live prices, stock quotes, exchange rates, sports scores
+- "Latest" or "current" anything (latest phone, current president, current version of X)
+- Anything explicitly time-relative to "now", "today", "this week", "this month", "this year"
+
+Answer 'chat' for everything else, including:
+- General knowledge and explanations (science, history, how-things-work)
+- Definitions, translations, calculations, coding help
+- Small talk, greetings, opinions, casual conversation
+- Questions about the assistant itself (who are you, what can you do)
+- Questions about well-established facts that don't change over time, even if they sound current (e.g. "who wrote Romeo and Juliet")
+
+Tie-breaking rule: if the question could be answered correctly and completely from general knowledge without needing anything from today, choose 'chat'. Only choose 'web' when a stale/pretrained answer would likely be wrong or incomplete.
+
+Examples:
+"what's today's weather in Delhi" -> web
+"who is the current prime minister of India" -> web
+"latest iPhone price" -> web
+"what's the Bitcoin price right now" -> web
+"what is machine learning" -> chat
+"who invented the telephone" -> chat
+"write me a poem" -> chat
+"who are you" -> chat
+"what's the capital of France" -> chat
+
+Respond with ONLY one word: 'web' or 'chat'. Nothing else."""),
+    ("human", """{history}Current question: {question}""")
+])
+
+    chain = prompt | llm_small
+    result = chain.invoke({"history": history, "question": state["question"]})
+    query_type = "web" if result.content.strip().lower() == "web" else "chat"
 
     return {"query_type": query_type}
     

@@ -2,7 +2,8 @@ from langgraph.graph import StateGraph, END
 
 from app.state import AgentState
 from app.nodes import (
-    query_analyzer, query_rewriter, multi_query_generator,
+    query_analyzer, content_type_classifier, general_type_classifier,
+    query_rewriter, multi_query_generator,
     retrieve_documents, grade_retrieval, refine_query,
     tavily_search, reranker, context_builder, answer_generator,
     hallucination_check, regenerate, answer_grader,
@@ -10,16 +11,23 @@ from app.nodes import (
     web_search_node, summary_node
 )
 
-# Conditional edge functions
-def route_query(state: AgentState) -> str:
-    if state["query_type"] == "chat":
-        return "chat_node"
-    elif state["query_type"] == "web":
-        return "web_search_node"
-    elif state["query_type"] == "summary":
+def route_uploaded_check(state: AgentState) -> str:
+    if state["needs_uploaded_content"]:
+        return "content_type_classifier"
+    else:
+        return "general_type_classifier"
+
+def route_content_type(state: AgentState) -> str:
+    if state["query_type"] == "summary":
         return "summary_node"
     else:
         return "query_rewriter"
+
+def route_general_type(state: AgentState) -> str:
+    if state["query_type"] == "web":
+        return "web_search_node"
+    else:
+        return "chat_node"
 
 
 def route_retrieval(state: AgentState) -> str:
@@ -56,6 +64,8 @@ def build_graph():
 
     # Add all nodes
     workflow.add_node("query_analyzer", query_analyzer)
+    workflow.add_node("content_type_classifier", content_type_classifier)
+    workflow.add_node("general_type_classifier", general_type_classifier)
     workflow.add_node("query_rewriter", query_rewriter)
     workflow.add_node("multi_query_generator", multi_query_generator)
     workflow.add_node("retrieve_documents", retrieve_documents)
@@ -94,11 +104,19 @@ def build_graph():
     workflow.add_edge("web_search_node", "final_response")
 
     # Conditional edges
-    workflow.add_conditional_edges("query_analyzer", route_query, {
-        "chat_node": "chat_node",
-        "web_search_node": "web_search_node",
+    workflow.add_conditional_edges("query_analyzer", route_uploaded_check, {
+        "content_type_classifier": "content_type_classifier",
+        "general_type_classifier": "general_type_classifier"
+    })
+
+    workflow.add_conditional_edges("content_type_classifier", route_content_type, {
         "summary_node": "summary_node",
         "query_rewriter": "query_rewriter"
+    })
+
+    workflow.add_conditional_edges("general_type_classifier", route_general_type, {
+        "web_search_node": "web_search_node",
+        "chat_node": "chat_node"
     })
 
     workflow.add_conditional_edges("grade_retrieval", route_retrieval, {

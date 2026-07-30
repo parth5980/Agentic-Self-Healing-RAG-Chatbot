@@ -16,7 +16,7 @@ def delete_existing_source(thread_id: str, filename: str):
     """If this filename was already ingested in this thread, remove its old vectors first"""
     results = vectorstore.similarity_search(
         "check",
-        k=1000,
+        k=100,
         filter={"thread_id": thread_id}
     )
 
