@@ -65,24 +65,24 @@ export default function KnowledgeSourcesModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-4"
+      className="fixed inset-0 z-[60] flex items-center md:items-end justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-200"
       onClick={onClose}>
       <div
-        className="w-full max-w-md rounded-2xl bg-zinc-950 border border-purple-900/40 shadow-2xl shadow-purple-950/50 mb-24"
+        className="w-full max-w-md rounded-3xl bg-zinc-900/90 border border-white/10 shadow-2xl shadow-purple-900/30 md:mb-10 overflow-hidden backdrop-blur-xl animate-in slide-in-from-bottom-8 md:zoom-in-95 duration-300"
         onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-900">
-          <h2 className="text-white font-bold">Knowledge Sources</h2>
-          <button onClick={onClose} className="text-gray-500 hover:text-white">
+        <div className="flex items-center justify-between px-6 py-5 border-b border-white/5 bg-white/[0.02]">
+          <h2 className="text-white font-semibold text-lg tracking-tight">
+            Add Knowledge
+          </h2>
+          <button
+            onClick={onClose}
+            className="p-2 rounded-full text-zinc-400 hover:text-white hover:bg-white/10 transition-colors">
             <X size={18} />
           </button>
         </div>
 
-        <div className="p-5 space-y-4">
-          <p className="text-xs font-semibold text-purple-400 tracking-wide">
-            ADD SOURCE
-          </p>
-
-          <div className="grid grid-cols-3 gap-2">
+        <div className="p-6 space-y-6">
+          <div className="grid grid-cols-3 gap-3">
             {TABS.map((tab) => {
               const Icon = tab.icon;
               const isActive = activeTab === tab.id;
@@ -94,19 +94,35 @@ export default function KnowledgeSourcesModal({
                     setError("");
                   }}
                   disabled={loading}
-                  className={`flex flex-col items-center text-center gap-1.5 rounded-xl border px-2 py-3 transition-colors disabled:opacity-50 ${
+                  className={`group flex flex-col items-center text-center gap-2 rounded-2xl border px-2 py-4 transition-all duration-300 disabled:opacity-50 ${
                     isActive
-                      ? "border-purple-500 bg-purple-950/40"
-                      : "border-zinc-800 hover:border-zinc-700"
+                      ? "border-purple-500/50 bg-purple-500/10 shadow-[inset_0_0_15px_rgba(168,85,247,0.15)]"
+                      : "border-white/5 bg-white/[0.03] hover:bg-white/[0.06] hover:border-white/10"
                   }`}>
                   <span
-                    className={`rounded-lg p-1.5 ${isActive ? "bg-purple-600" : "bg-zinc-800"}`}>
-                    <Icon size={16} className="text-white" />
+                    className={`rounded-xl p-2.5 transition-colors ${
+                      isActive
+                        ? "bg-purple-600 shadow-md shadow-purple-900/50"
+                        : "bg-white/5 group-hover:bg-white/10"
+                    }`}>
+                    <Icon
+                      size={18}
+                      className={
+                        isActive
+                          ? "text-white"
+                          : "text-zinc-400 group-hover:text-zinc-200"
+                      }
+                    />
                   </span>
-                  <span className="text-xs font-semibold text-white">
-                    {tab.label}
-                  </span>
-                  <span className="text-[10px] text-gray-500">{tab.hint}</span>
+                  <div>
+                    <span
+                      className={`block text-xs font-semibold ${isActive ? "text-purple-200" : "text-zinc-300"}`}>
+                      {tab.label}
+                    </span>
+                    <span className="block text-[10px] text-zinc-500 mt-0.5">
+                      {tab.hint}
+                    </span>
+                  </div>
                 </button>
               );
             })}
@@ -114,16 +130,28 @@ export default function KnowledgeSourcesModal({
 
           {activeTab === "file" && (
             <label
-              className={`flex flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-zinc-700 py-6 ${loading ? "opacity-50" : "cursor-pointer hover:border-purple-500"}`}>
-              {loading ? (
-                <Loader2 size={18} className="text-purple-400 animate-spin" />
-              ) : (
-                <Upload size={18} className="text-purple-400" />
-              )}
-              <span className="text-sm text-purple-300 font-medium">
-                {loading ? "Uploading..." : "Choose a file to upload"}
-              </span>
-              <span className="text-xs text-gray-500">PDF, DOCX, or TXT</span>
+              className={`flex flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed py-10 transition-all ${
+                loading
+                  ? "border-white/5 bg-white/[0.02] opacity-50"
+                  : "border-zinc-700 bg-black/30 cursor-pointer hover:border-purple-500/60 hover:bg-purple-500/10"
+              }`}>
+              <div className="p-3 bg-white/5 rounded-full">
+                {loading ? (
+                  <Loader2 size={24} className="text-purple-400 animate-spin" />
+                ) : (
+                  <Upload size={24} className="text-purple-400" />
+                )}
+              </div>
+              <div className="text-center">
+                <span className="block text-sm text-zinc-200 font-semibold mb-1">
+                  {loading
+                    ? "Processing document..."
+                    : "Click to select a file"}
+                </span>
+                <span className="block text-xs text-zinc-500 font-medium">
+                  Supports PDF, DOCX, or TXT
+                </span>
+              </div>
               <input
                 type="file"
                 accept=".pdf,.docx,.txt"
@@ -135,32 +163,50 @@ export default function KnowledgeSourcesModal({
           )}
 
           {(activeTab === "url" || activeTab === "youtube") && (
-            <div className="flex gap-2">
-              <input
-                value={url}
-                onChange={(e) => setUrl(e.target.value)}
-                disabled={loading}
-                placeholder={
-                  activeTab === "url"
-                    ? "https://docs.pnx.ai/architecture"
-                    : "https://youtube.com/watch?v=..."
-                }
-                className="flex-1 rounded-lg bg-zinc-900 border border-zinc-800 px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-purple-600"
-              />
+            <div className="flex flex-col gap-3 animate-in fade-in slide-in-from-right-4 duration-300">
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  {activeTab === "url" ? (
+                    <Link2 size={16} className="text-zinc-500" />
+                  ) : (
+                    <MonitorPlay size={16} className="text-zinc-500" />
+                  )}
+                </div>
+                <input
+                  value={url}
+                  onChange={(e) => setUrl(e.target.value)}
+                  disabled={loading}
+                  placeholder={
+                    activeTab === "url"
+                      ? "https://docs.pnx.ai/guide"
+                      : "https://youtube.com/watch?v=..."
+                  }
+                  className="w-full rounded-xl bg-black/40 border border-white/10 pl-10 pr-4 py-3.5 text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-purple-500/60 focus:bg-white/[0.05] focus:ring-4 focus:ring-purple-500/10 transition-all"
+                />
+              </div>
               <button
                 onClick={handleAddUrl}
-                disabled={loading}
-                className="rounded-lg bg-purple-600 hover:bg-purple-500 disabled:opacity-50 px-4 text-sm font-semibold text-white">
-                {loading
-                  ? "Adding..."
-                  : activeTab === "url"
-                    ? "Add URL"
-                    : "Add Video"}
+                disabled={loading || !url.trim()}
+                className="w-full rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 disabled:opacity-50 py-3.5 text-sm font-bold text-white shadow-lg shadow-purple-900/20 transition-all active:scale-[0.98]">
+                {loading ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <Loader2 size={16} className="animate-spin" /> Fetching
+                    Content...
+                  </span>
+                ) : (
+                  "Connect Source"
+                )}
               </button>
             </div>
           )}
 
-          {error && <p className="text-xs text-red-400 text-center">{error}</p>}
+          {error && (
+            <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20 animate-in fade-in slide-in-from-top-2">
+              <p className="text-xs text-red-400 text-center font-medium">
+                {error}
+              </p>
+            </div>
+          )}
         </div>
       </div>
     </div>

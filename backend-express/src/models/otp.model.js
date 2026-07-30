@@ -15,6 +15,11 @@ const otpSchema = new mongoose.Schema(
       type: String,
       required: [true, "OTP hash is required"],
     },
+    purpose: {
+      type: String,
+      enum: ["verify-email", "reset-password"],
+      default: "verify-email",
+    },
   },
   {
     timestamps: true,

@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { authFetch } from "../api/streamFetch";
 
 const TYPE_SPEED_MS = 12; // ms per character — tune to taste
+const REVEAL_TOTAL_MS = 5000; // the whole answer reveals within ~5s, no matter its length
+const TICK_MS = 20;
 
 export function useChatStream() {
   const [statuses, setStatuses] = useState([]);
@@ -72,16 +74,24 @@ export function useChatStream() {
               setStatuses((prev) => [...prev, payload.message]);
             } else if (payload.type === "answer") {
               finalContent = payload.content;
+              const totalTicks = Math.max(
+                1,
+                Math.round(REVEAL_TOTAL_MS / TICK_MS),
+              );
+              const chunkSize = Math.max(
+                1,
+                Math.ceil(finalContent.length / totalTicks),
+              );
               let i = 0;
               stopTyping();
               typeTimerRef.current = setInterval(() => {
-                i++;
+                i = Math.min(i + chunkSize, finalContent.length);
                 setStreamedReply(finalContent.slice(0, i));
                 if (i >= finalContent.length) {
                   stopTyping();
                   if (doneReceived) finishUp(finalContent);
                 }
-              }, TYPE_SPEED_MS);
+              }, TICK_MS);
             } else if (payload.type === "error") {
               throw new Error(payload.message);
             } else if (payload.type === "done") {

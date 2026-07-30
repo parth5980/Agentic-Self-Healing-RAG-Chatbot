@@ -128,6 +128,7 @@ export async function login(req, res) {
     user: {
       username: user.username,
       email: user.email,
+      createdAt: user.createdAt,
     },
     accessToken,
   });
@@ -158,6 +159,7 @@ export async function getMe(req, res) {
     user: {
       username: user.username,
       email: user.email,
+      createdAt: user.createdAt,
     },
   });
 }
@@ -350,4 +352,142 @@ export async function resendOtp(req, res) {
   );
 
   res.status(200).json({ message: "OTP resent successfully" });
+}
+
+export async function forgotPassword(req, res) {
+  const { email } = req.body;
+  if (!email) return res.status(400).json({ message: "Email is required" });
+
+  const user = await userModel.findOne({ email });
+
+  // Same response whether or not the account exists, so this can't be used
+  // to enumerate registered emails.
+  const genericResponse = {
+    message: "If an account exists for this email, a reset code has been sent.",
+  };
+
+  if (!user || !user.verified) {
+    return res.status(200).json(genericResponse);
+  }
+
+  await otpModel.deleteMany({ user: user._id, purpose: "reset-password" });
+
+  const otp = generateOtp();
+  const otpHash = crypto.createHash("sha256").update(otp).digest("hex");
+  await otpModel.create({
+    email,
+    user: user._id,
+    otpHash,
+    purpose: "reset-password",
+  });
+  await sendEmail(
+    email,
+    "Password Reset Code",
+    `Your password reset code is ${otp}`,
+    getOtpHtml(otp),
+  );
+
+  res.status(200).json(genericResponse);
+}
+
+export async function updatePassword(req, res) {
+  const { newPassword, currentPassword, email, otp } = req.body;
+
+  if (!newPassword || newPassword.length < 8) {
+    return res
+      .status(400)
+      .json({ message: "New password must be at least 8 characters" });
+  }
+
+  let user;
+  const token = req.headers.authorization?.split(" ")[1];
+
+  if (token) {
+    // Settings flow: logged in, verify the current password
+    let decoded;
+    try {
+      decoded = jwt.verify(token, config.JWT_SECRET);
+    } catch {
+      return res
+        .status(401)
+        .json({ message: "Invalid or expired access token" });
+    }
+
+    if (!currentPassword) {
+      return res.status(400).json({ message: "Current password is required" });
+    }
+
+    user = await userModel.findById(decoded.id);
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    const currentHash = crypto
+      .createHash("sha256")
+      .update(currentPassword)
+      .digest("hex");
+    if (currentHash !== user.password) {
+      return res.status(401).json({ message: "Current password is incorrect" });
+    }
+  } else {
+    // Forgot-password flow: no token, verify the OTP instead
+    if (!email || !otp) {
+      return res
+        .status(400)
+        .json({ message: "Email and reset code are required" });
+    }
+
+    const otpHash = crypto.createHash("sha256").update(otp).digest("hex");
+    const otpDoc = await otpModel.findOne({
+      email,
+      otpHash,
+      purpose: "reset-password",
+    });
+    if (!otpDoc)
+      return res.status(400).json({ message: "Invalid or expired reset code" });
+
+    user = await userModel.findById(otpDoc.user);
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    await otpModel.deleteMany({ user: user._id, purpose: "reset-password" });
+  }
+
+  user.password = crypto.createHash("sha256").update(newPassword).digest("hex");
+  await user.save();
+
+  // A changed password should kill every existing session — otherwise a
+  // stolen refresh token from before the change would still work.
+  await sessionModel.updateMany(
+    { user: user._id, revoked: false },
+    { revoked: true },
+  );
+
+  res.status(200).json({ message: "Password updated successfully" });
+}
+
+export async function updateProfile(req, res) {
+  const { username } = req.body;
+  if (!username?.trim())
+    return res.status(400).json({ message: "Username is required" });
+
+  const existing = await userModel.findOne({
+    username,
+    _id: { $ne: req.user.id },
+  });
+  if (existing)
+    return res.status(409).json({ message: "Username already taken" });
+
+  const user = await userModel.findByIdAndUpdate(
+    req.user.id,
+    { username: username.trim() },
+    { new: true },
+  );
+  if (!user) return res.status(404).json({ message: "User not found" });
+
+  res.status(200).json({
+    message: "Profile updated successfully",
+    user: {
+      username: user.username,
+      email: user.email,
+      createdAt: user.createdAt,
+    },
+  });
 }
