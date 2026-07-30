@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
 import AuthLayout from "../../components/auth/AuthLayout";
 import PasswordInput from "../../components/auth/PasswordInput";
@@ -7,6 +7,7 @@ import PasswordInput from "../../components/auth/PasswordInput";
 export default function SignIn() {
   const { login } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [form, setForm] = useState({ email: "", password: "" });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -35,6 +36,12 @@ export default function SignIn() {
       <h2 className="text-2xl font-bold text-white text-center mb-8">
         Sign In
       </h2>
+
+      {location.state?.resetSuccess && (
+        <p className="text-sm text-emerald-400 text-center mb-4">
+          Password reset successfully. Please sign in.
+        </p>
+      )}
 
       <form onSubmit={handleSubmit} className="space-y-5">
         <div>

@@ -8,4 +8,7 @@ export const authService = {
   refreshToken: () => api.get("/auth/refresh-token"),          // -> { accessToken }
   getMe: () => api.get("/auth/get-me"),
   logout: () => api.get("/auth/logout"),
+  forgotPassword: (email) => api.post("/auth/forgot-password", { email }),
+  updatePassword: (payload) => api.post("/auth/update-password", payload), // {currentPassword,newPassword} or {email,otp,newPassword}
+  updateProfile: (payload) => api.post("/auth/update-profile", payload), // {username}
 };

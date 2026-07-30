@@ -7,6 +7,7 @@ import SignIn from "./pages/auth/SignIn";
 import SignUp from "./pages/auth/SignUp";
 import Dashboard from "./pages/Dashboard";
 import Settings from "./pages/Settings";
+import ForgotPassword from "./pages/auth/ForgotPassword";
 
 export default function App() {
   return (
@@ -16,6 +17,7 @@ export default function App() {
           <Route element={<PublicRoute />}>
             <Route path="/signin" element={<SignIn />} />
             <Route path="/signup" element={<SignUp />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
           </Route>
           <Route element={<ProtectedRoute />}>
             <Route path="/" element={<Dashboard />} />

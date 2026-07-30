@@ -1,5 +1,6 @@
 import { Router } from "express";
 import * as authController from "../controllers/auth.controller.js";
+import { requireAuth } from "../middlewares/auth.middleware.js";
 
 const authRouter = Router();
 
@@ -42,5 +43,20 @@ authRouter.post("/verify-email", authController.verifyEmail);
  * POST /api/auth/resend-otp
  */
 authRouter.post("/resend-otp", authController.resendOtp);
+
+/**
+ * POST /api/auth/forgot-password
+ */
+authRouter.post("/forgot-password", authController.forgotPassword);
+
+/**
+ * POST /api/auth/update-password
+ */
+authRouter.post("/update-password", authController.updatePassword);
+
+/**
+ * POST /api/auth/update-profile
+ */
+authRouter.post("/update-profile", requireAuth, authController.updateProfile);
 
 export default authRouter;
