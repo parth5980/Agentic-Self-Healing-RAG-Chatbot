@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Paperclip, ArrowUp, Database, Menu,Loader2 } from "lucide-react";
+import { Paperclip, ArrowUp, Database, Menu, Loader2 } from "lucide-react";
 import { chatService } from "../../api/chatService";
 import { useChatStream } from "../../hooks/useChatStream";
 import MessageBubble from "./MessageBubble";
@@ -117,7 +117,7 @@ export default function ChatWindow({
       </header>
 
       {/* Messages Area */}
-      <div className="flex-1 overflow-y-auto px-4 md:px-8 py-6 space-y-6 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:bg-zinc-800 [&::-webkit-scrollbar-track]:bg-transparent scroll-smooth">
+      <div className="flex-1 overflow-y-auto px-4 md:px-8 py-4 space-y-6 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:bg-zinc-800 [&::-webkit-scrollbar-track]:bg-transparent scroll-smooth">
         <div className="max-w-4xl mx-auto w-full space-y-6">
           {messages.length === 0 && !isStreaming ? (
             <div className="flex flex-col items-center justify-center h-[50vh] text-center animate-in fade-in duration-500 zoom-in-95">
@@ -143,16 +143,15 @@ export default function ChatWindow({
           )}
 
           {isStreaming && (
-            <div className="max-w-3xl animate-in slide-in-from-left-4 fade-in duration-300">
-              <div className="pl-6 mb-3 space-y-1.5">
-                {statuses.map((s, i) => (
-                  <p
-                    key={i}
-                    className="text-[11px] font-mono text-purple-400 flex items-center gap-2">
-                    <Loader2 size={12} className="animate-spin" /> {s}
-                  </p>
-                ))}
-              </div>
+            <div className="max-w-3xl">
+              {statuses.length > 0 && (
+                <p
+                  key={statuses[statuses.length - 1]} // new key each change → replay the fade-in on every swap
+                  className="pl-6 mb-3 text-[11px] font-mono text-purple-400 flex items-center gap-2 animate-in fade-in slide-in-from-bottom-1 duration-300">
+                  <Loader2 size={12} className="animate-spin" />{" "}
+                  {statuses[statuses.length - 1]}
+                </p>
+              )}
               {streamedReply && (
                 <MessageBubble role="assistant" content={streamedReply} />
               )}
@@ -169,7 +168,7 @@ export default function ChatWindow({
       </div>
 
       {/* Input Area */}
-      <div className="p-4 md:p-6 bg-gradient-to-t from-black via-zinc-950/90 to-transparent">
+      <div className="p-2 md:p-4 from-black via-zinc-950/90 to-transparent">
         <form
           onSubmit={handleSend}
           className="max-w-4xl mx-auto w-full relative">
@@ -194,7 +193,7 @@ export default function ChatWindow({
               placeholder="Ask PNX AI..."
               rows={1}
               className="flex-1 max-h-32 bg-transparent text-white placeholder-zinc-500 focus:outline-none text-sm md:text-[15px] resize-none py-3.5 px-2 scrollbar-none"
-              style={{ minHeight: "44px" }}
+              style={{ minHeight: "30px" }}
             />
             <button
               type="submit"
@@ -203,7 +202,7 @@ export default function ChatWindow({
               <ArrowUp size={18} strokeWidth={2.5} />
             </button>
           </div>
-          <p className="text-center text-[10px] md:text-[11px] text-zinc-500 mt-3 font-medium tracking-wide px-4">
+          <p className="text-center text-[10px] md:text-[11px] text-zinc-500 mt-1 font-medium tracking-wide px-4">
             PNX AI grounds answers in your connected sources and flags anything
             it can't verify.
           </p>

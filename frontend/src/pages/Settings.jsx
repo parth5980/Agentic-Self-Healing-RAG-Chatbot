@@ -102,8 +102,8 @@ export default function Settings() {
         setIsOpen={setIsSidebarOpen}
       />
 
-      <div className="flex-1 h-[dvh] overflow-y-auto bg-black">
-        <header className="flex items-center gap-3 px-6 md:px-10 py-6 border-b border-white/5">
+      <div className="flex-1 h-[dvh] overflow-y-auto bg-black [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:bg-zinc-800 [&::-webkit-scrollbar-track]:bg-transparent scroll-smooth">
+        <header className="flex items-center gap-3 px-6 md:px-10 py-6 border-b border-white/5 sticky top-0 z-10 bg-black/80 backdrop-blur-xl shadow-sm">
           <button
             onClick={() => setIsSidebarOpen(true)}
             className="md:hidden p-2 rounded-xl text-zinc-400 hover:text-white hover:bg-white/5 border border-white/5">
@@ -117,7 +117,7 @@ export default function Settings() {
           </div>
         </header>
 
-        <div className="max-w-2xl mx-auto px-6 py-8 space-y-6">
+        <div className="max-w-2xl mx-auto px-6 py-8 space-y-6 ">
           <div className="rounded-2xl bg-zinc-900/60 border border-white/5 px-6 py-5 flex items-center gap-4">
             <div className="w-14 h-14 rounded-full bg-gradient-to-tr from-purple-600 to-indigo-500 flex items-center justify-center text-white text-xl font-bold shrink-0">
               {user?.username?.[0]?.toUpperCase() || "?"}

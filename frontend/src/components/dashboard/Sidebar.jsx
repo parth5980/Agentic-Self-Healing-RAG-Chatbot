@@ -107,7 +107,7 @@ export default function Sidebar({
                       e.stopPropagation();
                       onDeleteThread(t.thread_id);
                     }}
-                    className="opacity-0 md:group-hover:opacity-100 p-1 rounded-md text-zinc-500 hover:text-red-400 hover:bg-red-500/10 shrink-0 transition-all">
+                    className="opacity-100 md:opacity-0 md:group-hover:opacity-100 p-1 rounded-md text-zinc-500 hover:text-red-400 hover:bg-red-500/10 shrink-0 transition-all">
                     <Trash2 size={14} />
                   </button>
                 </div>
@@ -137,9 +137,6 @@ export default function Sidebar({
             <div className="min-w-0">
               <p className="text-sm text-white font-semibold truncate leading-tight">
                 {user?.username || "Guest User"}
-              </p>
-              <p className="text-[10px] text-zinc-500 font-medium truncate">
-                Free Plan
               </p>
             </div>
           </div>

@@ -16,11 +16,24 @@ export default function MessageBubble({ role, content }) {
 
   return (
     <div className="flex justify-start w-full animate-in slide-in-from-left-4 fade-in duration-300">
-      <div className="max-w-[95%] md:max-w-3xl rounded-3xl rounded-tl-sm bg-zinc-900/80 backdrop-blur-md border border-white/5 text-zinc-200 px-5 md:px-7 py-5 shadow-sm text-[15px]">
-        <ReactMarkdown
-          rehypePlugins={[rehypeHighlight]}>
-          {content}
-        </ReactMarkdown>
+      <div className="max-w-[95%] md:max-w-3xl rounded-3xl rounded-tl-sm bg-zinc-900/80 backdrop-blur-md border border-white/5 text-zinc-200 px-3 md:px-7 py-3 shadow-sm text-[15px]">
+        <div
+          className="prose prose-invert prose-sm md:prose-base max-w-none
+            prose-p:my-3 prose-p:leading-relaxed
+            prose-headings:font-semibold prose-headings:mt-5 prose-headings:mb-2 prose-headings:text-white
+            prose-ul:my-3 prose-ol:my-3 prose-li:my-1
+            prose-strong:text-white prose-strong:font-semibold
+            prose-a:text-purple-400 prose-a:no-underline hover:prose-a:underline
+            prose-blockquote:border-purple-500 prose-blockquote:text-zinc-400
+            prose-code:text-purple-300 prose-code:bg-black/40 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-code:before:content-none prose-code:after:content-none
+            prose-pre:bg-black prose-pre:border prose-pre:border-white/10 prose-pre:rounded-xl
+            prose-table:text-sm prose-th:text-zinc-300 prose-hr:border-white/10">
+          <ReactMarkdown
+            remarkPlugins={[remarkGfm]}
+            rehypePlugins={[rehypeHighlight]}>
+            {content}
+          </ReactMarkdown>
+        </div>
       </div>
     </div>
   );
