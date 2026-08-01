@@ -48,6 +48,7 @@ chatRouter.delete("/thread/:threadId/sources/:sourceId", chatController.deleteTh
 
 /**
  * DELETE /api/chat/thread/:threadId/sources
+ * Deletes all sources associated with a specific thread.
  */
 chatRouter.delete("/thread/:threadId/sources", chatController.deleteAllThreadSources);
 
