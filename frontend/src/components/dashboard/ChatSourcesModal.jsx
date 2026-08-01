@@ -33,6 +33,7 @@ export default function ChatSourcesModal({
   const [sources, setSources] = useState([]);
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState(null);
+  const [deletingAll, setDeletingAll] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -47,6 +48,23 @@ export default function ChatSourcesModal({
       }
     })();
   }, [threadId]);
+
+  const handleDeleteAll = async () => {
+    if (
+      !window.confirm("Delete ALL sources in this chat? This can't be undone.")
+    )
+      return;
+    setDeletingAll(true);
+    try {
+      await chatService.deleteAllThreadSources(threadId);
+      setSources([]);
+      onSourcesChanged?.();
+    } catch (err) {
+      console.error("Failed to delete all sources", err);
+    } finally {
+      setDeletingAll(false);
+    }
+  };
 
   const handleDelete = async (sourceId) => {
     setDeletingId(sourceId);
@@ -155,10 +173,15 @@ export default function ChatSourcesModal({
 
         <div className="p-5 border-t border-white/5 bg-black/20">
           <button
-            onClick={onAddNew}
-            className="w-full flex items-center justify-center gap-2 rounded-xl border border-dashed border-purple-500/40 bg-purple-500/5 text-purple-300 text-sm font-semibold py-3 hover:bg-purple-500/15 hover:border-purple-500/60 transition-all active:scale-[0.98]">
-            <Plus size={16} />
-            Add New Source
+            onClick={handleDeleteAll}
+            disabled={sources.length === 0 || deletingAll}
+            className="w-full flex items-center justify-center gap-2 rounded-xl border border-red-500/30 bg-red-500/5 text-red-400 text-sm font-semibold py-3 hover:bg-red-500/15 hover:border-red-500/50 disabled:opacity-40 disabled:cursor-not-allowed transition-all active:scale-[0.98]">
+            {deletingAll ? (
+              <Loader2 size={16} className="animate-spin" />
+            ) : (
+              <Trash2 size={16} />
+            )}
+            {deletingAll ? "Deleting all sources..." : "Delete All Sources"}
           </button>
         </div>
       </div>

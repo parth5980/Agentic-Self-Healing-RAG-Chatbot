@@ -31,4 +31,6 @@ export const chatService = {
       sourceType: "youtube",
       source,
     }),
+  deleteAllThreadSources: (threadId) =>
+    api.delete(`/chat/thread/${threadId}/sources`),
 };

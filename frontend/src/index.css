@@ -1,2 +1,7 @@
 @import "tailwindcss";
 @plugin "@tailwindcss/typography";
+
+html, body, #root {
+  overflow-x: hidden;
+  width: 100%;
+}

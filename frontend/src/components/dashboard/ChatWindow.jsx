@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from "react";
-import { Paperclip, ArrowUp, Database, Menu, Loader2 } from "lucide-react";
+import { Database, Menu, Loader2, ArrowUp } from "lucide-react";
 import { chatService } from "../../api/chatService";
 import { useChatStream } from "../../hooks/useChatStream";
 import MessageBubble from "./MessageBubble";
-import KnowledgeSourcesModal from "./KnowledgeSourcesModal";
+import KnowledgeSourcesPopover from "./KnowledgeSourcesPopover";
 import ChatSourcesModal from "./ChatSourcesModal";
 import logo from "../../assets/logo.png";
 
@@ -16,7 +16,6 @@ export default function ChatWindow({
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [sourcesCount, setSourcesCount] = useState(0);
-  const [showAddSources, setShowAddSources] = useState(false);
   const [showSourcesList, setShowSourcesList] = useState(false);
   const bottomRef = useRef(null);
   const { statuses, streamedReply, isStreaming, error, sendMessage } =
@@ -118,7 +117,7 @@ export default function ChatWindow({
 
       {/* Messages Area */}
       <div className="flex-1 overflow-y-auto px-4 md:px-8 py-4 space-y-6 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:bg-zinc-800 [&::-webkit-scrollbar-track]:bg-transparent scroll-smooth">
-        <div className="max-w-4xl mx-auto w-full space-y-6">
+        <div className="max-w-4xl mx-auto w-full min-w-0 space-y-6">
           {messages.length === 0 && !isStreaming ? (
             <div className="flex flex-col items-center justify-center h-[50vh] text-center animate-in fade-in duration-500 zoom-in-95">
               <div className="w-16 h-16 rounded-3xl bg-gradient-to-tr from-purple-500/10 to-indigo-500/10 flex items-center justify-center mb-6 shadow-inner shadow-white/5 border border-white/5">
@@ -172,15 +171,12 @@ export default function ChatWindow({
         <form
           onSubmit={handleSend}
           className="max-w-4xl mx-auto w-full relative">
-          <div className="flex items-end gap-2 rounded-3xl bg-zinc-900/60 backdrop-blur-xl border border-white/10 p-2 shadow-2xl focus-within:ring-4 focus-within:ring-purple-500/15 focus-within:border-purple-500/50 transition-all duration-300">
-            <button
-              type="button"
-              onClick={() => threadId && setShowAddSources(true)}
+          <div className="flex items-end gap-2 rounded-3xl bg-zinc-900/60  border border-white/10 p-2 shadow-2xl focus-within:ring-4 focus-within:ring-purple-500/15 focus-within:border-purple-500/50 transition-all duration-300">
+            <KnowledgeSourcesPopover
+              threadId={threadId}
               disabled={!threadId}
-              title="Add Knowledge Source"
-              className="p-3 text-zinc-400 hover:text-purple-400 hover:bg-white/5 rounded-2xl transition-all disabled:opacity-40 shrink-0">
-              <Paperclip size={20} />
-            </button>
+              onSourceAdded={refreshSourcesCount}
+            />
             <textarea
               value={input}
               onChange={(e) => setInput(e.target.value)}
@@ -209,21 +205,11 @@ export default function ChatWindow({
         </form>
       </div>
 
-      {showAddSources && (
-        <KnowledgeSourcesModal
-          threadId={threadId}
-          onClose={() => setShowAddSources(false)}
-          onSourceAdded={refreshSourcesCount}
-        />
-      )}
       {showSourcesList && (
         <ChatSourcesModal
           threadId={threadId}
           onClose={() => setShowSourcesList(false)}
-          onAddNew={() => {
-            setShowSourcesList(false);
-            setShowAddSources(true);
-          }}
+          onAddNew={() => setShowSourcesList(false)}
           onSourcesChanged={refreshSourcesCount}
         />
       )}
