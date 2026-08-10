@@ -234,7 +234,7 @@ Results are saved to `deepeval_results.csv`, `deepeval_batch_summary.csv`, and `
 Built as a B.Tech capstone project.
 
 - **AI Backend** (Python, FastAPI, LangGraph) — Parth
-- **Web Frontend** (Node.js, Express, MongoDB) — Teammate
+- **Web Frontend** (Node.js, Express, MongoDB) — ashish
 
 ---
 
