@@ -1,0 +1,33 @@
+batch,metric,avg_score,pass_rate_pct,passed_count,total_count
+1,Faithfulness,0.875,100.0,2,2
+1,Answer Relevancy,0.938,100.0,2,2
+1,Contextual Precision,1.0,100.0,2,2
+1,Contextual Recall,1.0,100.0,2,2
+2,Faithfulness,0.667,50.0,1,2
+2,Answer Relevancy,1.0,100.0,2,2
+2,Contextual Precision,0.0,0.0,0,2
+2,Contextual Recall,0.0,0.0,0,2
+3,Faithfulness,1.0,100.0,2,2
+3,Answer Relevancy,0.889,100.0,2,2
+3,Contextual Precision,1.0,100.0,2,2
+3,Contextual Recall,1.0,100.0,2,2
+4,Faithfulness,1.0,100.0,2,2
+4,Answer Relevancy,1.0,100.0,2,2
+4,Contextual Precision,1.0,100.0,2,2
+4,Contextual Recall,1.0,100.0,2,2
+5,Faithfulness,0.833,50.0,1,2
+5,Answer Relevancy,1.0,100.0,2,2
+5,Contextual Precision,1.0,100.0,2,2
+5,Contextual Recall,1.0,100.0,2,2
+6,Faithfulness,1.0,100.0,2,2
+6,Answer Relevancy,1.0,100.0,2,2
+6,Contextual Precision,1.0,100.0,2,2
+6,Contextual Recall,1.0,100.0,2,2
+7,Faithfulness,1.0,100.0,2,2
+7,Answer Relevancy,0.5,50.0,1,2
+7,Contextual Precision,0.125,0.0,0,2
+7,Contextual Recall,0.25,0.0,0,2
+8,Faithfulness,1.0,100.0,1,1
+8,Answer Relevancy,1.0,100.0,1,1
+8,Contextual Precision,1.0,100.0,1,1
+8,Contextual Recall,1.0,100.0,1,1

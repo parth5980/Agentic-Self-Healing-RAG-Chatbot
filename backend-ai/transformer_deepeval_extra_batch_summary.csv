@@ -1,0 +1,17 @@
+batch,metric,avg_score,pass_rate_pct,passed_count,total_count
+1,Hallucination,0.0,100.0,2,2
+1,Contextual Relevancy,0.783,100.0,2,2
+2,Hallucination,0.5,50.0,1,2
+2,Contextual Relevancy,0.2,0.0,0,2
+3,Hallucination,0.0,100.0,2,2
+3,Contextual Relevancy,0.569,0.0,0,2
+4,Hallucination,0.0,100.0,2,2
+4,Contextual Relevancy,0.706,50.0,1,2
+5,Hallucination,0.0,100.0,2,2
+5,Contextual Relevancy,0.248,0.0,0,2
+6,Hallucination,0.0,100.0,2,2
+6,Contextual Relevancy,0.66,50.0,1,2
+7,Hallucination,0.0,100.0,2,2
+7,Contextual Relevancy,0.059,0.0,0,2
+8,Hallucination,0.0,100.0,1,1
+8,Contextual Relevancy,0.784,100.0,1,1

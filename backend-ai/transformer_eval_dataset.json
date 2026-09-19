@@ -1,0 +1,111 @@
+[
+  {
+    "question": "What is the core architectural idea that defines the Transformer model from my pdf?",
+    "ground_truth": "The Transformer relies entirely on attention mechanisms, without using recurrence or convolutions, to draw global dependencies between input and output sequences.",
+    "contexts": [
+      "The abstract and introduction describe the Transformer as a new architecture that dispenses with recurrent and convolutional layers entirely, instead relying solely on attention mechanisms to model dependencies between input and output positions."
+    ]
+  },
+  {
+    "question": "What key limitation of recurrent models does the Transformer address from my pdf?",
+    "ground_truth": "Recurrent models generate hidden states sequentially, one position at a time, which prevents parallelization within a training example and becomes a bottleneck at longer sequence lengths due to memory constraints across the batch.",
+    "contexts": [
+      "The introduction explains that recurrent models factor computation along symbol positions, generating hidden states as a function of the previous hidden state, which inherently precludes parallel computation within a single training example and limits batching at longer sequence lengths."
+    ]
+  },
+  {
+    "question": "What is the formula for Scaled Dot-Product Attention, and why is the scaling factor needed from my pdf?",
+    "ground_truth": "Attention is computed as softmax(QK^T divided by the square root of dk) multiplied by V. The scaling is needed because for large values of dk, the dot products between queries and keys grow large in magnitude, which pushes the softmax function into regions with extremely small gradients.",
+    "contexts": [
+      "Section 3.2.1 defines Scaled Dot-Product Attention as computing the dot product of queries and keys, dividing by the square root of the key dimension dk, then applying softmax to weight the values. It explains the division is necessary because large dk values cause the dot products to grow large, pushing softmax into a region with very small gradients."
+    ]
+  },
+  {
+    "question": "How many attention heads are used in the base Transformer model, and what are the per-head dimensions from my pdf?",
+    "ground_truth": "The base model uses 8 parallel attention heads, with each head's key and value dimensions set to 64 (dmodel divided by the number of heads).",
+    "contexts": [
+      "Section 3.2.2 states the model uses 8 parallel attention layers (heads), with dk and dv both set to dmodel/h, which works out to 64 for the base configuration."
+    ]
+  },
+  {
+    "question": "What are the three distinct ways multi-head attention is applied within the Transformer architecture from my pdf?",
+    "ground_truth": "Multi-head attention is used in encoder-decoder attention, where decoder queries attend over all encoder output positions; in encoder self-attention, where each position attends to all positions in the previous encoder layer; and in decoder self-attention, where each position attends only to earlier positions, using masking to preserve the auto-regressive property.",
+    "contexts": [
+      "Section 3.2.3 lists three applications of attention: encoder-decoder attention layers where decoder queries attend over encoder memory; encoder self-attention layers where all positions attend to the previous encoder layer; and decoder self-attention layers, which are masked to prevent attending to future positions."
+    ]
+  },
+  {
+    "question": "What is the structure of the position-wise feed-forward network used in each layer from my pdf?",
+    "ground_truth": "It consists of two linear transformations with a ReLU activation in between, applied identically to each position separately, with an inner-layer dimensionality of 2048 and an input/output dimensionality of 512.",
+    "contexts": [
+      "Section 3.3 describes the feed-forward network as two linear transformations with a ReLU in between, applied position-wise, with input/output dimension 512 and an inner layer of 2048."
+    ]
+  },
+  {
+    "question": "Why did the authors choose sinusoidal positional encodings over learned positional embeddings from my pdf?",
+    "ground_truth": "They hypothesized sinusoidal encodings would let the model extrapolate to sequence lengths longer than those seen during training, even though their experiments showed learned positional embeddings produced nearly identical results to the sinusoidal version.",
+    "contexts": [
+      "Section 3.5 explains the choice of sinusoidal positional encoding was motivated by the possibility of extrapolating to longer sequence lengths at inference time, despite learned embeddings performing almost identically in their experiments."
+    ]
+  },
+  {
+    "question": "Combining the complexity analysis with the earlier discussion of convolutional alternatives, why does self-attention make it easier to learn long-range dependencies than the approaches it's compared against from my pdf?",
+    "ground_truth": "Convolutional approaches like ByteNet and ConvS2S require the number of operations relating two positions to grow with the distance between them (linearly or logarithmically), making distant dependencies harder to learn. Self-attention, by contrast, connects any two positions with a constant number of operations, giving it a much shorter maximum path length between positions and making long-range dependencies easier to learn.",
+    "contexts": [
+      "The background section explains that in models like ByteNet and ConvS2S, the number of operations needed to relate two positions grows with their distance apart, which makes learning dependencies between distant positions more difficult.",
+      "The self-attention comparison section states that self-attention layers connect all positions with a constant number of sequentially executed operations, unlike recurrent layers which require operations proportional to sequence length, and notes that shorter paths between positions make long-range dependencies easier to learn."
+    ]
+  },
+  {
+    "question": "What optimizer was used to train the Transformer, and how long did the base model take to train from my pdf?",
+    "ground_truth": "The Adam optimizer was used, with a learning rate that increased linearly for the first 4000 warmup steps and then decreased proportionally to the inverse square root of the step number. The base model was trained for 100,000 steps, taking about 12 hours on 8 P100 GPUs.",
+    "contexts": [
+      "The hardware and schedule section states training was done on 8 NVIDIA P100 GPUs, with the base model trained for 100,000 steps over roughly 12 hours.",
+      "The optimizer section describes using Adam with a warmup-based learning rate schedule, increasing linearly for the first 4000 steps before decaying proportionally to the inverse square root of the step number."
+    ]
+  },
+  {
+    "question": "What two types of regularization were applied during training, and what values were used from my pdf?",
+    "ground_truth": "Residual dropout was applied at a rate of 0.1 to sub-layer outputs and to the sums of embeddings and positional encodings. Label smoothing of value 0.1 was also applied, which hurt perplexity but improved accuracy and BLEU score.",
+    "contexts": [
+      "The regularization section describes applying dropout at rate 0.1 to sub-layer outputs before they're added back to the residual connection, and label smoothing of 0.1, noting that label smoothing hurts perplexity but improves BLEU score."
+    ]
+  },
+  {
+    "question": "How did the Transformer's BLEU score and training cost compare to previous state-of-the-art models on English-to-German translation from my pdf?",
+    "ground_truth": "The big Transformer model achieved a new state-of-the-art BLEU score of 28.4 on English-to-German, outperforming the best previously reported models including ensembles by more than 2.0 BLEU, while the base model surpassed all previously published models and ensembles at a fraction of their training cost.",
+    "contexts": [
+      "The machine translation results section reports the big model achieving 28.4 BLEU on English-to-German, more than 2.0 BLEU above the best prior ensembles, and notes the base model beat all prior models at a much lower training cost."
+    ]
+  },
+  {
+    "question": "According to the model variation experiments, what happens to translation quality when the number of attention heads changes from the base setting from my pdf?",
+    "ground_truth": "Single-head attention performed 0.9 BLEU worse than the best setting, but quality also dropped when too many heads were used, showing there's an optimal number of heads rather than more always being better.",
+    "contexts": [
+      "The model variations section reports that reducing to a single attention head costs 0.9 BLEU compared to the best configuration, and that translation quality also degrades when the number of heads is increased too far."
+    ]
+  },
+  {
+    "question": "Combining the main translation results with the model variation study, what do the authors conclude about model size and dropout from my pdf?",
+    "ground_truth": "The variation study shows bigger models achieve better BLEU scores and that dropout is very helpful for avoiding overfitting, a pattern consistent with the big model outperforming the base model in the main translation results.",
+    "contexts": [
+      "The main results section shows the big Transformer model outperforming the base model on both English-to-German and English-to-French BLEU scores.",
+      "The model variation section states that bigger models are better and dropout is very helpful in avoiding over-fitting, based on rows comparing different model sizes and dropout rates."
+    ]
+  },
+  {
+    "question": "What task besides machine translation was the Transformer applied to, and how did it perform compared to prior approaches from my pdf?",
+    "ground_truth": "The Transformer was applied to English constituency parsing on the Penn Treebank. Despite no task-specific tuning, a 4-layer Transformer outperformed nearly all previously reported models in both the WSJ-only and semi-supervised settings, except for the Recurrent Neural Network Grammar model.",
+    "contexts": [
+      "The constituency parsing section reports that a 4-layer Transformer trained on the Penn Treebank performed better than all previously reported models except the Recurrent Neural Network Grammar, despite the lack of task-specific tuning, in both WSJ-only and semi-supervised training settings."
+    ]
+  },
+  {
+    "question": "Combining the conclusion's future plans with the parsing experiment results, what does the paper suggest about the Transformer's applicability beyond translation from my pdf?",
+    "ground_truth": "The parsing experiments demonstrated the Transformer generalizes well beyond translation tasks despite structural challenges, and building on this, the authors state their intent to extend the architecture to other modalities like images, audio, and video, as well as to investigate restricted local attention for handling large inputs efficiently.",
+    "contexts": [
+      "The conclusion states the authors plan to extend the Transformer to modalities beyond text, such as images, audio, and video, and to investigate restricted local attention mechanisms for large inputs and outputs.",
+      "The constituency parsing section shows the Transformer generalizing well to a structurally different task from translation, performing competitively despite the output being subject to strong structural constraints."
+    ]
+  }
+]
