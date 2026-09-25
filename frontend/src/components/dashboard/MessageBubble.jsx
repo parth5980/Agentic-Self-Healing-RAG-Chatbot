@@ -3,6 +3,23 @@ import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
 import "highlight.js/styles/github-dark.css";
 
+// Custom renderers for react-markdown. A <table> in a response can easily
+// be wider than the message bubble (lots of columns, long cell text) -
+// without this, the overflow doesn't just scroll the table, it propagates
+// all the way out to the chat window itself (see the overflow-x-hidden
+// added to the messages container in ChatWindow.jsx for the other half of
+// this fix). Wrapping the table in its own overflow-x-auto div contains
+// the scroll right at the table's edge instead of the whole page.
+const markdownComponents = {
+  table: ({ node, ...props }) => (
+    <div
+      className="my-4 max-w-full px-4 overflow-x-auto rounded-xl border border-white/10
+        [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-thumb]:bg-zinc-700 [&::-webkit-scrollbar-track]:bg-transparent">
+      <table {...props} />
+    </div>
+  ),
+};
+
 export default function MessageBubble({ role, content }) {
   if (role === "user") {
     return (
@@ -30,7 +47,8 @@ export default function MessageBubble({ role, content }) {
             prose-table:text-sm prose-th:text-zinc-300 prose-hr:border-white/10">
           <ReactMarkdown
             remarkPlugins={[remarkGfm]}
-            rehypePlugins={[rehypeHighlight]}>
+            rehypePlugins={[rehypeHighlight]}
+            components={markdownComponents}>
             {content}
           </ReactMarkdown>
         </div>

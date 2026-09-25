@@ -8,6 +8,7 @@ import SignUp from "./pages/auth/SignUp";
 import Dashboard from "./pages/Dashboard";
 import Settings from "./pages/Settings";
 import ForgotPassword from "./pages/auth/ForgotPassword";
+import About from "./pages/About";
 
 export default function App() {
   return (
@@ -23,6 +24,7 @@ export default function App() {
             <Route path="/" element={<Dashboard />} />
             <Route path="/chat/:threadId" element={<Dashboard />} />
             <Route path="/settings" element={<Settings />} />
+            <Route path="/about" element={<About />} />
           </Route>
         </Routes>
       </AuthProvider>
