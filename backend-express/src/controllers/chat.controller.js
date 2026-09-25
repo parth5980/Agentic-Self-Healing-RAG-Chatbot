@@ -1,5 +1,4 @@
 import Thread from "../models/thread.model.js";
-import Source from "../models/source.model.js";
 import {
   streamAIResponse,
   ingestSource,

@@ -116,7 +116,7 @@ export default function ChatWindow({
       </header>
 
       {/* Messages Area */}
-      <div className="flex-1 overflow-y-auto px-4 md:px-8 py-4 space-y-6 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:bg-zinc-800 [&::-webkit-scrollbar-track]:bg-transparent scroll-smooth">
+      <div className="flex-1 overflow-y-auto overflow-x-hidden px-4 md:px-8 py-4 space-y-6 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:bg-zinc-800 [&::-webkit-scrollbar-track]:bg-transparent scroll-smooth">
         <div className="max-w-4xl mx-auto w-full min-w-0 space-y-6">
           {messages.length === 0 && !isStreaming ? (
             <div className="flex flex-col items-center justify-center h-[50vh] text-center animate-in fade-in duration-500 zoom-in-95">
