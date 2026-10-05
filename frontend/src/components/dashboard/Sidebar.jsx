@@ -44,11 +44,11 @@ export default function Sidebar({
             className={`flex items-center mb-6 ${collapsed ? "md:flex-col md:gap-3" : "justify-between"}`}>
             <div
               className={`flex items-center gap-3 ${collapsed ? "md:justify-center" : ""}`}>
-                <img
-                  src={logo}
-                  alt="PNX AI"
-                  className={`w-9 h-9 rounded-xl shadow-lg border border-white/10 shrink-0`}
-                />
+              <img
+                src={logo}
+                alt="PNX AI"
+                className={`w-9 h-9 rounded-xl p-0.5 shadow-lg border border-white/10 shrink-0`}
+              />
 
               {!collapsed && (
                 <div className="md:block">
@@ -94,34 +94,32 @@ export default function Sidebar({
         </div>
 
         {/* Thread list */}
-        <div className="flex-1 overflow-y-auto px-3 pb-4 [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:bg-zinc-800 [&::-webkit-scrollbar-track]:bg-transparent">
-          {!collapsed && (
+        {!collapsed && (
+          <div className="flex-1 overflow-y-auto px-3 pb-4 [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:bg-zinc-800 [&::-webkit-scrollbar-track]:bg-transparent">
             <p className="px-3 mb-2 text-[10px] font-bold uppercase tracking-widest text-zinc-500 md:block">
               Conversations
             </p>
-          )}
 
-          <div className="space-y-1">
-            {threads.map((t) => {
-              const isActive = t.thread_id === activeThreadId;
-              return (
-                <div
-                  key={t.thread_id}
-                  onClick={() => {
-                    onSelectThread(t.thread_id);
-                    setIsOpen(false);
-                  }}
-                  title={collapsed ? t.title || "New Chat" : undefined}
-                  className={`group flex items-center gap-3 rounded-xl h-10 px-3 py-2 cursor-pointer text-sm font-medium transition-all ${
-                    isActive
-                      ? "bg-purple-500/15 text-white border-l-2 border-purple-500"
-                      : "text-zinc-400 hover:bg-white/4 hover:text-zinc-200 border-l-2 border-transparent"
-                  } ${collapsed ? "md:justify-center" : ""}`}>
-                  <MessageSquare
-                    size={16} 
-                    className={`shrink-0 ${isActive ? "text-purple-400" : "text-zinc-600"}`}
-                  />
-                  {!collapsed && (
+            <div className="space-y-1">
+              {threads.map((t) => {
+                const isActive = t.thread_id === activeThreadId;
+                return (
+                  <div
+                    key={t.thread_id}
+                    onClick={() => {
+                      onSelectThread(t.thread_id);
+                      setIsOpen(false);
+                    }}
+                    title={t.title || "New Chat"}
+                    className={`group flex items-center gap-3 rounded-xl h-10 px-3 py-2 cursor-pointer text-sm font-medium transition-all ${
+                      isActive
+                        ? "bg-purple-500/15 text-white border-l-2 border-purple-500"
+                        : "text-zinc-400 hover:bg-white/4 hover:text-zinc-200 border-l-2 border-transparent"
+                    } ${collapsed ? "md:justify-center" : ""}`}>
+                    <MessageSquare
+                      size={16}
+                      className={`shrink-0 ${isActive ? "text-purple-400" : "text-zinc-600"}`}
+                    />
                     <>
                       <span className="truncate flex-1 md:block">
                         {t.title || "New Chat"}
@@ -135,24 +133,24 @@ export default function Sidebar({
                         <Trash2 size={14} />
                       </button>
                     </>
-                  )}
-                </div>
-              );
-            })}
+                  </div>
+                );
+              })}
 
-            {threads.length === 0 && !collapsed && (
-              <div className="text-center py-8 px-4 md:block">
-                <MessageSquare
-                  size={20}
-                  className="mx-auto text-zinc-700 mb-2"
-                />
-                <p className="text-xs text-zinc-500 font-medium">
-                  No conversations yet
-                </p>
-              </div>
-            )}
+              {threads.length === 0 && (
+                <div className="text-center py-8 px-4 md:block">
+                  <MessageSquare
+                    size={20}
+                    className="mx-auto text-zinc-700 mb-2"
+                  />
+                  <p className="text-xs text-zinc-500 font-medium">
+                    No conversations yet
+                  </p>
+                </div>
+              )}
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Footer */}
         <div className="p-4 mt-auto border-t border-white/5 bg-zinc-950">

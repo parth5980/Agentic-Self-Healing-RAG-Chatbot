@@ -171,7 +171,7 @@ export default function ChatWindow({
         <form
           onSubmit={handleSend}
           className="max-w-4xl mx-auto w-full relative">
-          <div className="flex items-end gap-2 rounded-3xl bg-zinc-900/60  border border-white/10 p-2 shadow-2xl focus-within:ring-4 focus-within:ring-purple-500/15 focus-within:border-purple-500/50 transition-all duration-300">
+          <div className="flex items-end gap-2 rounded-3xl bg-zinc-900/60 border border-white/10 p-2 shadow-2xl focus-within:ring-4 focus-within:ring-purple-500/15 focus-within:border-purple-500/50 transition-all duration-300">
             <KnowledgeSourcesPopover
               threadId={threadId}
               disabled={!threadId}

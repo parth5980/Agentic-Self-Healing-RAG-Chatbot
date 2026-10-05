@@ -53,7 +53,7 @@ export default function About() {
           <img
             src={logo}
             alt="PNX AI"
-            className="w-14 h-14 rounded-2xl border border-white/10 shadow-lg"
+            className="w-14 h-14 p-1 rounded-2xl border border-white/10 shadow-lg"
           />
           <div>
             <h1 className="text-2xl md:text-3xl font-bold tracking-tight">PNX AI</h1>

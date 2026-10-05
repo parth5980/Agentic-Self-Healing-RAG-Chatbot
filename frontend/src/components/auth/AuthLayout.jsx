@@ -7,7 +7,7 @@ export default function AuthLayout({ heading, subtext, sideExtra, children }) {
         {/* Left branding panel */}
         <div className="relative bg-gradient-to-br from-purple-950 via-purple-950/80 to-black p-10 flex flex-col justify-between min-h-[520px]">
           <div className="flex items-center gap-3">
-            <img src={logo} alt="PNX AI" className="w-10 h-10 rounded-lg" />
+            <img src={logo} alt="PNX AI" className="w-10 h-10 rounded-lg p-0.5 shadow-lg border bg-[#090115] border-white/10 shrink-0" />
             <div>
               <p className="font-serif text-lg font-bold text-purple-300 leading-tight">
                 PNX AI
