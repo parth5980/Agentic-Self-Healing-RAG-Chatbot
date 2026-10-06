@@ -18,6 +18,7 @@ export default function ChatWindow({
   const [sourcesCount, setSourcesCount] = useState(0);
   const [showSourcesList, setShowSourcesList] = useState(false);
   const bottomRef = useRef(null);
+  const textareaRef = useRef(null);
   const { statuses, streamedReply, isStreaming, error, sendMessage } =
     useChatStream();
 
@@ -55,6 +56,13 @@ export default function ChatWindow({
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, streamedReply, statuses]);
+
+  useEffect(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, 128)}px`;
+  }, [input]);
 
   const handleSend = (e) => {
     e.preventDefault();
@@ -178,6 +186,7 @@ export default function ChatWindow({
               onSourceAdded={refreshSourcesCount}
             />
             <textarea
+              ref={textareaRef}
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => {
@@ -188,7 +197,7 @@ export default function ChatWindow({
               }}
               placeholder="Ask PNX AI..."
               rows={1}
-              className="flex-1 max-h-32 bg-transparent text-white placeholder-zinc-500 focus:outline-none text-sm md:text-[15px] resize-none py-3.5 px-2 scrollbar-none"
+              className="flex-1 max-h-32 bg-transparent text-white placeholder-zinc-500 focus:outline-none text-sm md:text-[15px] resize-none py-3.5 px-2 overflow-y-auto [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:bg-zinc-700 [&::-webkit-scrollbar-track]:bg-transparent"
               style={{ minHeight: "30px" }}
             />
             <button
