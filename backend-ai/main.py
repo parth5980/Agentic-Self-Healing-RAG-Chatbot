@@ -13,6 +13,9 @@ import os
 from app.graph import app as rag_app
 from app.config import index, supabase, SUPABASE_BUCKET, vectorstore
 from app.ingest import ingest_document
+from langchain_core.prompts import ChatPromptTemplate
+from app.config import llm_small
+from app.nodes import format_chat_history
 
 # FastAPI app
 app = FastAPI(title="PNX AI API")
@@ -36,6 +39,10 @@ class ChatRequest(BaseModel):
 class IngestRequest(BaseModel):
     source_type: str
     source: str
+
+class TitleRequest(BaseModel):
+    thread_id: str
+    chat_history: List[dict]
 
 
 # Initial state template
@@ -137,6 +144,45 @@ def chat(request: ChatRequest):
             "X-Accel-Buffering": "no"
         }
     )
+
+@app.post("/generate-title")
+def generate_title(request: TitleRequest):
+    """Generate a short, clean chat title from the first exchange in chat_history"""
+    history_text = format_chat_history(request.chat_history)
+
+    prompt = ChatPromptTemplate.from_messages([
+    ("system", """Generate a short, clear title for this conversation, based on the conversation history provided.
+
+        Rules:
+        - Maximum 5 words
+        - No quotation marks, no trailing punctuation
+        - Title Case preferred, but keep proper nouns/terms as the user wrote them
+        - Capture the actual topic or intent — not a generic phrase like "Question about..." or "User asks..."
+        - Base the title on BOTH the question and the answer, since the answer often clarifies vague questions
+        - If the conversation is just a greeting or small talk with no real topic (hi, hello, how are you, who are you), respond with "New Conversation"
+        - If the user is asking about an uploaded document/video/link, reflect the actual subject matter discussed, not just "Document Question"
+        - If the user is asking for a summary, make that clear in the title (e.g. "CNN Architecture Summary", not just "CNN Architectures")
+        - If the conversation needed a live web search (current events, prices, news), the title should reflect the real-world topic, not that it used search
+        
+        Examples:
+        Q: "summarize my cnn pdf" / A: "Your PDF covers LeNet, AlexNet, VGG, and ResNet architectures..." -> CNN Architectures Summary
+        Q: "what does the paper say about attention mechanisms" / A: "The paper explains self-attention as..." -> Attention Mechanism Explained
+        Q: "hi" / A: "Hello! How can I help you today?" -> greeting conversation
+        Q: "what's today's bitcoin price" / A: "Bitcoin is currently trading at..." -> Bitcoin Price Today
+        Q: "explain how recursion works" / A: "Recursion is a programming technique where..." -> Understanding Recursion
+        Q: "who is the current PM of India" / A: "The current Prime Minister is..." -> Current PM Of India
+        Q: "answer my first question from the file" / A: "Based on the document, the answer is..." -> Quiz Question Answered
+        Q: "what about the next part" (follow-up) / A: "Continuing from the previous section..." -> Document Follow-up Discussion
+        
+        Respond with ONLY the title. Nothing else."""),
+            ("human", "{history}")
+])
+    chain = prompt | llm_small
+    result = chain.invoke({"history": history_text})
+    title = result.content.strip().strip('"').strip("'")
+
+    return {"success": True, "thread_id": request.thread_id, "title": title}
+    
 
 
 @app.post("/ingest")

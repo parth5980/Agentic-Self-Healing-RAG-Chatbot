@@ -307,7 +307,11 @@ def tavily_search(state: AgentState) -> AgentState:
     for r in results["results"]:
         doc = Document(
             page_content=r["content"],
-            metadata={"source": r["url"], "title": r.get("title", "")}
+            metadata={
+                "source": r["url"],
+                "title": r.get("title", ""),
+                "source_type": "web",   
+            }
         )
         docs.append(doc)
 
