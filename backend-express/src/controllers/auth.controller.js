@@ -4,6 +4,7 @@ import jwt from "jsonwebtoken";
 import config from "../config/config.js";
 import sessionModel from "../models/session.model.js";
 import { sendEmail } from "../services/email.service.js";
+import { createOtp, verifyOtp } from "../services/otp.service.js";
 import { generateOtp, getOtpHtml } from "../utils/utils.js";
 import otpModel from "../models/otp.model.js";
 import { hashPassword, verifyPassword } from "../utils/password.js";
@@ -39,17 +40,18 @@ export async function register(req, res) {
     password: hashedPassword,
   });
 
-  const otp = generateOtp();
-  const html = getOtpHtml(otp);
-
-  const otpHash = crypto.createHash("sha256").update(otp).digest("hex");
-  await otpModel.create({
+  const otp = await createOtp({
     email,
     user: user._id,
-    otpHash,
+    purpose: "verify-email",
   });
 
-  await sendEmail(email, "OTP Verification", `Your OTP code is ${otp}`, html);
+  await sendEmail(
+    email,
+    "OTP Verification",
+    `Your OTP code is ${otp}. It expires in 10 minutes.`,
+    getOtpHtml(otp),
+  );
 
   res.status(201).json({
     message: "User registered successfully",
@@ -319,26 +321,19 @@ export async function logoutAll(req, res) {
 export async function verifyEmail(req, res) {
   const { otp, email } = req.body;
 
-  const otpHash = crypto.createHash("sha256").update(otp).digest("hex");
-
-  const otpDoc = await otpModel.findOne({
-    email,
-    otpHash,
-  });
-
-  if (!otpDoc) {
-    return res.status(400).json({
-      message: "Invalid OTP",
-    });
+  const result = await verifyOtp({ email, otp, purpose: "verify-email" });
+  if (!result.ok) {
+    return res.status(400).json({ message: "Invalid or expired code" });
   }
 
-  const user = await userModel.findByIdAndUpdate(otpDoc.user, {
-    verified: true,
-  });
+  const user = await userModel.findByIdAndUpdate(
+    result.userId,
+    { verified: true },
+    { new: true }, // original returned the pre-update doc, so it reported verified: false
+  );
+  if (!user) return res.status(404).json({ message: "User not found" });
 
-  await otpModel.deleteMany({
-    user: otpDoc.user,
-  });
+  await otpModel.deleteMany({ user: result.userId });
 
   return res.status(200).json({
     message: "Email verified successfully",
@@ -352,22 +347,25 @@ export async function verifyEmail(req, res) {
 
 export async function resendOtp(req, res) {
   const { email } = req.body;
-  const user = await userModel.findOne({ email });
+  if (typeof email !== "string" || !email) {
+    return res.status(400).json({ message: "Email is required" });
+  }
 
+  const user = await userModel.findOne({ email });
   if (!user)
     return res.status(404).json({ message: "No account found for this email" });
   if (user.verified)
     return res.status(400).json({ message: "Email is already verified" });
 
-  await otpModel.deleteMany({ user: user._id });
-
-  const otp = generateOtp();
-  const otpHash = crypto.createHash("sha256").update(otp).digest("hex");
-  await otpModel.create({ email, user: user._id, otpHash });
+  const otp = await createOtp({
+    email,
+    user: user._id,
+    purpose: "verify-email",
+  });
   await sendEmail(
     email,
     "OTP Verification",
-    `Your OTP code is ${otp}`,
+    `Your OTP code is ${otp}. It expires in 10 minutes.`,
     getOtpHtml(otp),
   );
 
@@ -376,7 +374,8 @@ export async function resendOtp(req, res) {
 
 export async function forgotPassword(req, res) {
   const { email } = req.body;
-  if (!email) return res.status(400).json({ message: "Email is required" });
+  if (typeof email !== "string" || !email)
+    return res.status(400).json({ message: "Email is required" });
 
   const user = await userModel.findOne({ email });
 
@@ -392,18 +391,15 @@ export async function forgotPassword(req, res) {
 
   await otpModel.deleteMany({ user: user._id, purpose: "reset-password" });
 
-  const otp = generateOtp();
-  const otpHash = crypto.createHash("sha256").update(otp).digest("hex");
-  await otpModel.create({
+  const otp = await createOtp({
     email,
     user: user._id,
-    otpHash,
     purpose: "reset-password",
   });
   await sendEmail(
     email,
     "Password Reset Code",
-    `Your password reset code is ${otp}`,
+    `Your password reset code is ${otp}. It expires in 10 minutes.`,
     getOtpHtml(otp),
   );
 
@@ -459,16 +455,12 @@ export async function updatePassword(req, res) {
         .json({ message: "Email and reset code are required" });
     }
 
-    const otpHash = crypto.createHash("sha256").update(otp).digest("hex");
-    const otpDoc = await otpModel.findOne({
-      email,
-      otpHash,
-      purpose: "reset-password",
-    });
-    if (!otpDoc)
+    const result = await verifyOtp({ email, otp, purpose: "reset-password" });
+    if (!result.ok) {
       return res.status(400).json({ message: "Invalid or expired reset code" });
+    }
 
-    user = await userModel.findById(otpDoc.user);
+    user = await userModel.findById(result.userId);
     if (!user) return res.status(404).json({ message: "User not found" });
 
     await otpModel.deleteMany({ user: user._id, purpose: "reset-password" });
