@@ -6,9 +6,16 @@ import sessionModel from "../models/session.model.js";
 import { sendEmail } from "../services/email.service.js";
 import { generateOtp, getOtpHtml } from "../utils/utils.js";
 import otpModel from "../models/otp.model.js";
+import { hashPassword, verifyPassword } from "../utils/password.js";
 
 export async function register(req, res) {
   const { username, email, password } = req.body;
+
+  if (!password || password.length < 8 || password.length > 72) {
+    return res
+      .status(400)
+      .json({ message: "Password must be 8-72 characters" });
+  }
 
   const isAlreadyRegistered = await userModel.findOne({
     $or: [{ username }, { email }],
@@ -20,10 +27,11 @@ export async function register(req, res) {
     });
   }
 
-  const hashedPassword = crypto
-    .createHash("sha256")
-    .update(password)
-    .digest("hex");
+  const hashedPassword = await hashPassword(password);
+  // const hashedPassword = crypto
+  //   .createHash("sha256")
+  //   .update(password)
+  //   .digest("hex");
 
   const user = await userModel.create({
     username,
@@ -70,17 +78,28 @@ export async function login(req, res) {
     });
   }
 
-  const hashedPassword = crypto
-    .createHash("sha256")
-    .update(password)
-    .digest("hex");
+  // const hashedPassword = crypto
+  //   .createHash("sha256")
+  //   .update(password)
+  //   .digest("hex");
 
-  const isPasswordValid = hashedPassword === user.password;
+  // const isPasswordValid = hashedPassword === user.password;
 
-  if (!isPasswordValid) {
-    return res.status(401).json({
-      message: "Invalid email or password",
-    });
+  // if (!isPasswordValid) {
+  //   return res.status(401).json({
+  //     message: "Invalid email or password",
+  //   });
+  // }
+  const { valid, needsRehash } = await verifyPassword(password, user.password);
+
+  if (!valid) {
+    return res.status(401).json({ message: "Invalid email or password" });
+  }
+
+  // One-time lazy migration: upgrade old SHA-256 hashes on successful login
+  if (needsRehash) {
+    user.password = await hashPassword(password);
+    await user.save();
   }
 
   const refreshToken = jwt.sign(
@@ -394,10 +413,10 @@ export async function forgotPassword(req, res) {
 export async function updatePassword(req, res) {
   const { newPassword, currentPassword, email, otp } = req.body;
 
-  if (!newPassword || newPassword.length < 8) {
+  if (!newPassword || newPassword.length < 8 || newPassword.length > 72) {
     return res
       .status(400)
-      .json({ message: "New password must be at least 8 characters" });
+      .json({ message: "New password must be between 8 and 72 characters" });
   }
 
   let user;
@@ -421,11 +440,15 @@ export async function updatePassword(req, res) {
     user = await userModel.findById(decoded.id);
     if (!user) return res.status(404).json({ message: "User not found" });
 
-    const currentHash = crypto
-      .createHash("sha256")
-      .update(currentPassword)
-      .digest("hex");
-    if (currentHash !== user.password) {
+    // const currentHash = crypto
+    //   .createHash("sha256")
+    //   .update(currentPassword)
+    //   .digest("hex");
+    // if (currentHash !== user.password) {
+    //   return res.status(401).json({ message: "Current password is incorrect" });
+    // }
+    const { valid } = await verifyPassword(currentPassword, user.password);
+    if (!valid) {
       return res.status(401).json({ message: "Current password is incorrect" });
     }
   } else {
@@ -451,7 +474,8 @@ export async function updatePassword(req, res) {
     await otpModel.deleteMany({ user: user._id, purpose: "reset-password" });
   }
 
-  user.password = crypto.createHash("sha256").update(newPassword).digest("hex");
+  // user.password = crypto.createHash("sha256").update(newPassword).digest("hex");
+  user.password = await hashPassword(newPassword);
   await user.save();
 
   // A changed password should kill every existing session — otherwise a
