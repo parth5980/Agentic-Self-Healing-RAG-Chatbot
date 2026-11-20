@@ -222,7 +222,7 @@ export async function ingest(req, res) {
   }
 
   try {
-    const existingThread = await Thread.findOne({ thread_id: threadId });
+    let existingThread = await Thread.findOne({ thread_id: threadId });
     if (existingThread && existingThread.author?.toString() !== req.user.id) {
       return res
         .status(403)
