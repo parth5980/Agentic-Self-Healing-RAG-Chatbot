@@ -41,6 +41,14 @@ const config = {
   GOOGLE_REFRESH_TOKEN: process.env.GOOGLE_REFRESH_TOKEN,
   GOOGLE_USER: process.env.GOOGLE_USER,
   AI_BACKEND_URL: process.env.AI_BACKEND_URL,
+  PORT: Number(process.env.PORT) || 8080,
+  NODE_ENV: process.env.NODE_ENV || "development",
+  // comma-separated list, e.g. "https://app.x.com,http://localhost:5173"
+  CLIENT_URL: process.env.CLIENT_URL || "http://localhost:5173",
+  // "strict" | "lax" | "none"
+  COOKIE_SAMESITE: (process.env.COOKIE_SAMESITE || "strict").toLowerCase(),
+  // number of proxy hops in front of the app (Render/Railway/Heroku = 1)
+  TRUST_PROXY: Number(process.env.TRUST_PROXY) || 0,
 };
 
 export default config;
