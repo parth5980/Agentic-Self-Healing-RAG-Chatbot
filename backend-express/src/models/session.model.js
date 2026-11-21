@@ -11,6 +11,8 @@ const sessionSchema = new mongoose.Schema(
       type: String,
       required: [true, "Refresh token hash is required"],
     },
+    prevRefreshTokenHash: { type: String, default: null },
+    rotatedAt: { type: Date, default: null },
     ip: {
       type: String,
       required: [true, "IP address is required"],
@@ -32,6 +34,9 @@ const sessionSchema = new mongoose.Schema(
     timestamps: true,
   },
 );
+
+sessionSchema.index({ refreshTokenHash: 1 });
+sessionSchema.index({ prevRefreshTokenHash: 1 }, { sparse: true });
 
 const sessionModel = mongoose.model("sessions", sessionSchema);
 

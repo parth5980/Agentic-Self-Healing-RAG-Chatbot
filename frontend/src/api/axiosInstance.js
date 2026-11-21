@@ -18,6 +18,22 @@ api.interceptors.request.use((config) => {
 
 let refreshPromise = null;
 
+// The single entry point for refreshing. Dedups within this tab, and the
+// Web Lock makes other tabs wait their turn so they send the already-rotated cookie.
+export function refreshAccessToken() {
+  refreshPromise ??= (async () => {
+    const doRefresh = () => api.get("/auth/refresh-token");
+    const res = navigator.locks
+      ? await navigator.locks.request("pnx-refresh-token", doRefresh)
+      : await doRefresh();
+    setAccessToken(res.data.accessToken);
+    return res.data.accessToken;
+  })().finally(() => {
+    refreshPromise = null;
+  });
+  return refreshPromise;
+}
+
 api.interceptors.response.use(
   (res) => res,
   async (error) => {
@@ -29,17 +45,7 @@ api.interceptors.response.use(
     if (error.response?.status === 401 && !original._retry && !isRefreshCall) {
       original._retry = true;
       try {
-        refreshPromise ??= api
-          .get("/auth/refresh-token")
-          .then((res) => {
-            setAccessToken(res.data.accessToken);
-            return res.data.accessToken;
-          })
-          .finally(() => {
-            refreshPromise = null;
-          });
-
-        const newToken = await refreshPromise;
+        const newToken = await refreshAccessToken();
         original.headers.Authorization = `Bearer ${newToken}`;
         return api(original);
       } catch {

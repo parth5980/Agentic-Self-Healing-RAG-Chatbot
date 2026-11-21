@@ -1,6 +1,22 @@
 import { createContext, useState, useEffect } from "react";
 import { authService } from "../api/authService";
 import { setAccessToken } from "../api/axiosInstance";
+import { refreshAccessToken } from "../api/axiosInstance";
+
+useEffect(() => {
+  (async () => {
+    try {
+      await refreshAccessToken(); // StrictMode's second effect run reuses the same in-flight promise
+      const me = await authService.getMe();
+      setUser(me.data.user);
+    } catch {
+      setAccessToken(null);
+      setUser(null);
+    } finally {
+      setLoading(false);
+    }
+  })();
+}, []);
 
 export const AuthContext = createContext(null);
 
