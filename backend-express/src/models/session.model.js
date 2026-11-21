@@ -23,6 +23,10 @@ const sessionSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    expiresAt: {
+      type: Date,
+      default: () => new Date(Date.now() + 7 * 24 * 3600 * 1000),
+    },
   },
   {
     timestamps: true,
