@@ -1,6 +1,6 @@
 import { createContext, useState, useEffect } from "react";
 import { authService } from "../api/authService";
-import { setAccessToken } from "../api/axiosInstance";
+import { setAccessToken, refreshAccessToken } from "../api/axiosInstance";
 
 export const AuthContext = createContext(null);
 
@@ -11,8 +11,7 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     (async () => {
       try {
-        const { data } = await authService.refreshToken();
-        setAccessToken(data.accessToken);
+        await refreshAccessToken();
         const me = await authService.getMe();
         setUser(me.data.user);
       } catch {

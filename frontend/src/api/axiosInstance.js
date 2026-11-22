@@ -18,28 +18,30 @@ api.interceptors.request.use((config) => {
 
 let refreshPromise = null;
 
+export function refreshAccessToken() {
+  refreshPromise ??= (async () => {
+    const doRefresh = () => api.get("/auth/refresh-token");
+    const res = navigator.locks
+      ? await navigator.locks.request("pnx-refresh-token", doRefresh)
+      : await doRefresh();
+    setAccessToken(res.data.accessToken);
+    return res.data.accessToken;
+  })().finally(() => {
+    refreshPromise = null;
+  });
+  return refreshPromise;
+}
+
 api.interceptors.response.use(
   (res) => res,
   async (error) => {
     const original = error.config;
     const isRefreshCall = original?.url?.includes("/auth/refresh-token");
 
-    // If the refresh-token call itself 401s, there's nothing to refresh —
-    // just let it fail so AuthContext's try/catch handles it quietly.
     if (error.response?.status === 401 && !original._retry && !isRefreshCall) {
       original._retry = true;
       try {
-        refreshPromise ??= api
-          .get("/auth/refresh-token")
-          .then((res) => {
-            setAccessToken(res.data.accessToken);
-            return res.data.accessToken;
-          })
-          .finally(() => {
-            refreshPromise = null;
-          });
-
-        const newToken = await refreshPromise;
+        const newToken = await refreshAccessToken();
         original.headers.Authorization = `Bearer ${newToken}`;
         return api(original);
       } catch {
