@@ -29,7 +29,7 @@ authRouter.post("/login", guessLimiter, authController.login);
 /**
  * GET /api/auth/get-me
  */
-authRouter.get("/get-me", authController.getMe);
+authRouter.get("/get-me", requireAuth, authController.getMe);
 
 /**
  * GET /api/auth/refresh-token

@@ -9,6 +9,7 @@ import { generateOtp, getOtpHtml } from "../utils/utils.js";
 import otpModel from "../models/otp.model.js";
 import { hashPassword, verifyPassword } from "../utils/password.js";
 import { refreshCookieOptions, clearCookieOptions } from "../utils/cookie.js";
+import { isSessionActive } from "../middlewares/auth.middleware.js";
 
 const REFRESH_GRACE_MS = 30 * 1000;
 const sha256 = (v) => crypto.createHash("sha256").update(v).digest("hex");
@@ -142,25 +143,10 @@ export async function login(req, res) {
 }
 
 export async function getMe(req, res) {
-  const token = req.headers.authorization?.split(" ")[1];
-
-  if (!token) {
-    return res.status(401).json({
-      message: "token not found",
-      header: req.headers,
-    });
-  }
-
-  const decoded = jwt.verify(token, config.JWT_SECRET);
-
-  const user = await userModel.findById(decoded.id);
-
+  const user = await userModel.findById(req.user.id);
   if (!user) {
-    return res.status(404).json({
-      message: "User not found",
-    });
+    return res.status(404).json({ message: "User not found" });
   }
-
   res.status(200).json({
     message: "user fetched successfully",
     user: {
@@ -393,6 +379,7 @@ export async function updatePassword(req, res) {
   }
 
   let user;
+  let currentSessionId = null; 
   const token = req.headers.authorization?.split(" ")[1];
 
   if (token) {
@@ -400,10 +387,15 @@ export async function updatePassword(req, res) {
     let decoded;
     try {
       decoded = jwt.verify(token, config.JWT_SECRET);
+      currentSessionId = decoded.sessionId;
     } catch {
       return res
         .status(401)
         .json({ message: "Invalid or expired access token" });
+    }
+
+    if (!(await isSessionActive(decoded))) {
+      return res.status(401).json({ message: "Session expired or revoked" });
     }
 
     if (!currentPassword) {
@@ -443,16 +435,12 @@ export async function updatePassword(req, res) {
     await otpModel.deleteMany({ user: user._id, purpose: "reset-password" });
   }
 
-  // user.password = crypto.createHash("sha256").update(newPassword).digest("hex");
   user.password = await hashPassword(newPassword);
   await user.save();
 
-  // A changed password should kill every existing session — otherwise a
-  // stolen refresh token from before the change would still work.
-  await sessionModel.updateMany(
-    { user: user._id, revoked: false },
-    { revoked: true },
-  );
+  const filter = { user: user._id, revoked: false };
+  if (currentSessionId) filter._id = { $ne: currentSessionId };
+  await sessionModel.updateMany(filter, { revoked: true });
 
   res.status(200).json({ message: "Password updated successfully" });
 }
