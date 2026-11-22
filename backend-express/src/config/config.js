@@ -41,6 +41,8 @@ const config = {
   GOOGLE_REFRESH_TOKEN: process.env.GOOGLE_REFRESH_TOKEN,
   GOOGLE_USER: process.env.GOOGLE_USER,
   AI_BACKEND_URL: process.env.AI_BACKEND_URL,
+  NODE_ENV: process.env.NODE_ENV || "development",
+  COOKIE_SAMESITE: (process.env.COOKIE_SAMESITE || "strict").toLowerCase(),
 };
 
 export default config;

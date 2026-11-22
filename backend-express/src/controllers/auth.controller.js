@@ -8,6 +8,7 @@ import { createOtp, verifyOtp } from "../services/otp.service.js";
 import { generateOtp, getOtpHtml } from "../utils/utils.js";
 import otpModel from "../models/otp.model.js";
 import { hashPassword, verifyPassword } from "../utils/password.js";
+import { refreshCookieOptions, clearCookieOptions } from "../utils/cookie.js";
 
 export async function register(req, res) {
   const { username, email, password } = req.body;
@@ -137,12 +138,7 @@ export async function login(req, res) {
     },
   );
 
-  res.cookie("refreshToken", refreshToken, {
-    httpOnly: true,
-    secure: true,
-    sameSite: "strict",
-    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-  });
+  res.cookie("refreshToken", refreshToken, refreshCookieOptions);
 
   res.status(200).json({
     message: "Logged in successfully",
@@ -241,12 +237,7 @@ export async function refreshToken(req, res) {
   session.refreshTokenHash = newRefreshTokenHash;
   await session.save();
 
-  res.cookie("refreshToken", newRefreshToken, {
-    httpOnly: true,
-    secure: true,
-    sameSite: "strict",
-    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-  });
+  res.cookie("refreshToken", newRefreshToken, refreshCookieOptions);
 
   res.status(200).json({
     message: "Access token refreshed successfully",
@@ -283,7 +274,7 @@ export async function logout(req, res) {
   session.revoked = true;
   await session.save();
 
-  res.clearCookie("refreshToken");
+  res.clearCookie("refreshToken", clearCookieOptions);
 
   res.status(200).json({
     message: "Logged out successfully",
@@ -311,7 +302,7 @@ export async function logoutAll(req, res) {
     },
   );
 
-  res.clearCookie("refreshToken");
+  res.clearCookie("refreshToken", clearCookieOptions);
 
   res.status(200).json({
     message: "Logged out from all devices successfully",
