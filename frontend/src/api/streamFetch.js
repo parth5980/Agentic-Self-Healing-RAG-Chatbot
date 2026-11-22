@@ -1,10 +1,11 @@
-import { getAccessToken, setAccessToken } from "./axiosInstance";
-import { authService } from "./authService";
-
-const API_BASE = import.meta.env.VITE_API_BASE_URL;
+import {
+  getAccessToken,
+  setAccessToken,
+  refreshAccessToken,
+} from "./axiosInstance";
 
 export async function authFetch(path, options = {}, _retried = false) {
-  const res = await fetch(`${API_BASE}${path}`, {
+  const res = await fetch(`${import.meta.env.VITE_API_BASE_URL}${path}`, {
     ...options,
     credentials: "include",
     headers: {
@@ -14,10 +15,14 @@ export async function authFetch(path, options = {}, _retried = false) {
   });
 
   if (res.status === 401 && !_retried) {
-    const { data } = await authService.refreshToken();
-    setAccessToken(data.accessToken);
+    try {
+      await refreshAccessToken();
+    } catch {
+      setAccessToken(null);
+      window.location.href = "/signin";
+      throw new Error("Session expired");
+    }
     return authFetch(path, options, true);
   }
-
   return res;
 }

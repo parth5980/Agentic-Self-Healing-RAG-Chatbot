@@ -10,6 +10,18 @@ import otpModel from "../models/otp.model.js";
 import { hashPassword, verifyPassword } from "../utils/password.js";
 import { refreshCookieOptions, clearCookieOptions } from "../utils/cookie.js";
 
+const REFRESH_GRACE_MS = 30 * 1000;
+const sha256 = (v) => crypto.createHash("sha256").update(v).digest("hex");
+
+const signAccessToken = (userId, sessionId) =>
+  jwt.sign({ id: userId, sessionId }, config.JWT_SECRET, { expiresIn: "15m" });
+
+// jti makes every refresh token unique
+const signRefreshToken = (userId) =>
+  jwt.sign({ id: userId, jti: crypto.randomUUID() }, config.JWT_SECRET, {
+    expiresIn: "7d",
+  });
+
 export async function register(req, res) {
   const { username, email, password } = req.body;
 
@@ -105,38 +117,16 @@ export async function login(req, res) {
     await user.save();
   }
 
-  const refreshToken = jwt.sign(
-    {
-      id: user._id,
-    },
-    config.JWT_SECRET,
-    {
-      expiresIn: "7d",
-    },
-  );
-
-  const refreshTokenHash = crypto
-    .createHash("sha256")
-    .update(refreshToken)
-    .digest("hex");
+  const refreshToken = signRefreshToken(user._id);
 
   const session = await sessionModel.create({
     user: user._id,
-    refreshTokenHash,
+    refreshTokenHash: sha256(refreshToken),
     ip: req.ip,
     userAgent: req.headers["user-agent"],
   });
 
-  const accessToken = jwt.sign(
-    {
-      id: user._id,
-      sessionId: session._id,
-    },
-    config.JWT_SECRET,
-    {
-      expiresIn: "15m",
-    },
-  );
+  const accessToken = signAccessToken(user._id, session._id);
 
   res.cookie("refreshToken", refreshToken, refreshCookieOptions);
 
@@ -182,67 +172,67 @@ export async function getMe(req, res) {
 }
 
 export async function refreshToken(req, res) {
-  const refreshToken = req.cookies.refreshToken;
+  const presented = req.cookies.refreshToken;
+  if (!presented) {
+    return res.status(401).json({ message: "Refresh token not found" });
+  }
 
-  if (!refreshToken) {
-    return res.status(401).json({
-      message: "Refresh token not found",
+  let decoded;
+  try {
+    decoded = jwt.verify(presented, config.JWT_SECRET);
+  } catch {
+    res.clearCookie("refreshToken", clearCookieOptions);
+    return res.status(401).json({ message: "Invalid refresh token" });
+  }
+
+  const presentedHash = sha256(presented);
+
+  // Atomic match-and-rotate: only one concurrent request can win
+  const newRefreshToken = signRefreshToken(decoded.id);
+  const rotated = await sessionModel.findOneAndUpdate(
+    { refreshTokenHash: presentedHash, revoked: false, user: decoded.id },
+    {
+      $set: {
+        refreshTokenHash: sha256(newRefreshToken),
+        prevRefreshTokenHash: presentedHash,
+        rotatedAt: new Date(),
+      },
+    },
+    { new: true },
+  );
+
+  if (rotated) {
+    res.cookie("refreshToken", newRefreshToken, refreshCookieOptions);
+    return res.status(200).json({
+      message: "Access token refreshed successfully",
+      accessToken: signAccessToken(decoded.id, rotated._id),
     });
   }
 
-  const decoded = jwt.verify(refreshToken, config.JWT_SECRET);
-
-  const refreshTokenHash = crypto
-    .createHash("sha256")
-    .update(refreshToken)
-    .digest("hex");
-
-  const session = await sessionModel.findOne({
-    refreshTokenHash,
-    revoked: false,
+  // The token was just rotated out by a parallel request
+  const stale = await sessionModel.findOne({
+    prevRefreshTokenHash: presentedHash,
+    user: decoded.id,
   });
+  if (!stale || stale.revoked) {
+    return res.status(401).json({ message: "Invalid refresh token" });
+  }
 
-  if (!session) {
-    return res.status(401).json({
-      message: "Invalid refresh token",
+  // Grace window: issue an access token, leave the cookie alone
+  if (
+    stale.rotatedAt &&
+    Date.now() - stale.rotatedAt.getTime() <= REFRESH_GRACE_MS
+  ) {
+    return res.status(200).json({
+      message: "Access token refreshed successfully",
+      accessToken: signAccessToken(decoded.id, stale._id),
     });
   }
 
-  const accessToken = jwt.sign(
-    {
-      id: decoded.id,
-      sessionId: session._id,
-    },
-    config.JWT_SECRET,
-    {
-      expiresIn: "15m",
-    },
-  );
-
-  const newRefreshToken = jwt.sign(
-    {
-      id: decoded.id,
-    },
-    config.JWT_SECRET,
-    {
-      expiresIn: "7d",
-    },
-  );
-
-  const newRefreshTokenHash = crypto
-    .createHash("sha256")
-    .update(newRefreshToken)
-    .digest("hex");
-
-  session.refreshTokenHash = newRefreshTokenHash;
-  await session.save();
-
-  res.cookie("refreshToken", newRefreshToken, refreshCookieOptions);
-
-  res.status(200).json({
-    message: "Access token refreshed successfully",
-    accessToken,
-  });
+  // Old token replayed after the grace window: revoke the session
+  await sessionModel.updateOne({ _id: stale._id }, { revoked: true });
+  res.clearCookie("refreshToken", clearCookieOptions);
+  return res.status(401).json({ message: "Invalid refresh token" });
 }
 
 export async function logout(req, res) {
@@ -255,13 +245,9 @@ export async function logout(req, res) {
     });
   }
 
-  const refreshTokenHash = crypto
-    .createHash("sha256")
-    .update(refreshToken)
-    .digest("hex");
-
+  const refreshTokenHash = sha256(refreshToken);
   const session = await sessionModel.findOne({
-    refreshTokenHash,
+    $or: [{ refreshTokenHash }, { prevRefreshTokenHash: refreshTokenHash }],
     revoked: false,
   });
 
