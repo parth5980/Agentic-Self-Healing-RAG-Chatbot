@@ -26,3 +26,4 @@ docx2txt
 youtube-transcript-api
 beautifulsoup4
 lxml
+uvicorn[standard]
