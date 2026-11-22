@@ -16,6 +16,9 @@ app.use(express.json());
 app.use(cookieParser());
 
 app.set("trust proxy", 1);
+
+app.get("/health", (req, res) => res.json({ status: "ok" }));
+
 app.use("/api/auth", authRouter);
 app.use("/api/chat", chatRouter);
 
