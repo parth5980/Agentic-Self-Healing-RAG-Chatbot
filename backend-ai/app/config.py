@@ -1,6 +1,6 @@
 import os
 from dotenv import load_dotenv
-from langchain_mistralai import ChatMistralAI, MistralAIEmbeddings
+from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from langchain_pinecone import PineconeVectorStore
 from pinecone import Pinecone
 from pathlib import Path
@@ -12,7 +12,8 @@ env_path = Path(__file__).resolve().parent.parent / ".env"
 load_dotenv(dotenv_path=env_path)
 
 # API Keys
-MISTRAL_API_KEY = os.getenv("MISTRAL_API_KEY")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+
 PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
 LANGSMITH_API_KEY = os.getenv("LANGSMITH_API_KEY")
 TAVILY_API_KEY = os.getenv("TAVILY_API_KEY")
@@ -40,9 +41,10 @@ os.environ["LANGCHAIN_PROJECT"] = "PNX AI"
 #)
 
 # Embeddings
-embeddings = MistralAIEmbeddings(
-    model="mistral-embed",
-    api_key=MISTRAL_API_KEY
+embeddings = GoogleGenerativeAIEmbeddings(
+    model="models/gemini-embedding-001",
+    google_api_key=GEMINI_API_KEY,
+    output_dimensionality=1024
 )
 
 # Pinecone
